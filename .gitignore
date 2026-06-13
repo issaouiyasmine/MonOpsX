@@ -1,0 +1,35 @@
+# Python
+
+MonOpsX_api/.venv/
+MonOpsX_api/__pycache__/
+MonOpsX_api/.pytest_cache/
+
+# Environment
+
+**/.env
+
+
+# Mongo
+
+*.db
+
+# Node
+
+MonOpsX_ui/node_modules/
+MonOpsX_ui/.expo/
+
+# Logs
+
+*.log
+
+# VS Code
+
+.vscode/
+
+# Mac
+
+.DS_Store
+
+# Windows
+
+Thumbs.db
