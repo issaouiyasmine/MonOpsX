@@ -25,6 +25,8 @@ class UserLogin(BaseModel):
     date_locked: Optional[datetime] = None
     
     is_active: bool = True
+    is_principal: bool = False
+    is_first_login: bool = False
 
     is_deleted: bool = False
 

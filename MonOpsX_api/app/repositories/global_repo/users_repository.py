@@ -104,13 +104,44 @@ class UsersRepository:
 
         result = await db.users.update_one(
             {
-                "_id": user_id
+                "_id": ObjectId(user_id)
             },
             {
                 "$set": {
-                    "hash_password": new_hashed_password
+                    "database_hash_password": new_hashed_password
                 }
             }
         )
         return str(result.modified_count)
+
+    @staticmethod
+    async def update_fields(user_id: str, data: dict) -> None:
+        db = get_app_database()
+        data["updated_at"] = datetime.utcnow()
+        await db.users.update_one(
+            {"_id": ObjectId(user_id), "is_deleted": False},
+            {"$set": data}
+        )
+
+    @staticmethod
+    async def activate(user_id: str) -> None:
+        await UsersRepository.update_fields(
+            user_id,
+            {"is_active": True, "is_first_login": False}
+        )
+
+    @staticmethod
+    async def deactivate_many(user_ids: list[str]) -> None:
+        if not user_ids:
+            return
+
+        db = get_app_database()
+        await db.users.update_many(
+            {"_id": {"$in": [ObjectId(value) for value in user_ids]}},
+            {"$set": {
+                "is_active": False,
+                "is_first_login": False,
+                "updated_at": datetime.utcnow()
+            }}
+        )
     

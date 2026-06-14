@@ -25,6 +25,9 @@ class AuthResponse(BaseModel):
     email: EmailStr
     access_token: str
     refresh_token: str
+    role_id: str
+    permissions: list[int]
+    is_principal: bool
     token_type: str = "bearer"
 
 

@@ -13,15 +13,15 @@ class UserRepository:
     @staticmethod
     async def create(
         account_id: str,
-        user: dict
-    ):
+        user: User
+    ) -> str:
 
         db = get_account_database(
             account_id
         )
 
         result = await db.users.insert_one(
-            user
+            user.model_dump(by_alias=True)
         )
 
         return str(
@@ -51,7 +51,9 @@ class UserRepository:
             email=email,
             normalized_email=email.strip().upper(),
             hashed_password=hashed_password,
-            is_active=True
+            is_active=True,
+            is_principal=True,
+            is_first_login=False
         )
 
         await db.users.insert_one(user.model_dump(by_alias=True))
@@ -88,7 +90,8 @@ class UserRepository:
 
         user_data = await db.users.find_one(
             {
-                "_id": user_id
+                "_id": ObjectId(user_id),
+                "is_deleted": False
             }
         )
 
@@ -132,6 +135,56 @@ class UserRepository:
                 "$set": user.model_dump(by_alias=True)
             }
         )
+
+    @staticmethod
+    async def update_fields(
+        account_id: str,
+        user_id: str,
+        data: dict
+    ) -> None:
+        db = get_account_database(account_id)
+        data["updated_on"] = datetime.utcnow()
+        await db.users.update_one(
+            {"_id": ObjectId(user_id), "is_deleted": False},
+            {"$set": data}
+        )
+
+    @staticmethod
+    async def activate(account_id: str, user_id: str) -> None:
+        await UserRepository.update_fields(
+            account_id,
+            user_id,
+            {
+                "is_active": True,
+                "is_first_login": False,
+                "last_login": datetime.utcnow()
+            }
+        )
+
+    @staticmethod
+    async def deactivate_by_role(
+        account_id: str,
+        role_id: str
+    ) -> list[str]:
+        db = get_account_database(account_id)
+        users = await db.users.find({
+            "role_id": ObjectId(role_id),
+            "is_deleted": False,
+            "is_principal": False
+        }).to_list(length=None)
+        user_ids = [str(user["_id"]) for user in users]
+
+        if user_ids:
+            await db.users.update_many(
+                {"_id": {"$in": [ObjectId(value) for value in user_ids]}},
+                {"$set": {
+                    "is_active": False,
+                    "is_first_login": False,
+                    "updated_on": datetime.utcnow()
+                }}
+            )
+
+        return user_ids
     
     @staticmethod
     async def delete(
@@ -143,7 +196,7 @@ class UserRepository:
 
         await db.users.update_one(
             {
-                "_id": user_id
+                "_id": ObjectId(user_id)
             },
             {
                 "$set": {

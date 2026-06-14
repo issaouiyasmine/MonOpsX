@@ -19,6 +19,8 @@ class User(BaseModel):
     role_id: ObjectId
     hashed_password: str
     is_active: bool = True
+    is_principal: bool = False
+    is_first_login: bool = False
     created_on: datetime = Field(default_factory=datetime.utcnow)
     updated_on: datetime = Field(default_factory=datetime.utcnow)
     deleted_on: Optional[datetime] = None

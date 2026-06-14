@@ -13,6 +13,7 @@ class Role(BaseModel):
 
     id: ObjectId = Field(alias="_id")
     name: str
+    normalized_name: str = ""
     permissions: list[int] = Field(default_factory=list)
     is_default: bool = False
     created_on: datetime = Field(default_factory=datetime.utcnow)

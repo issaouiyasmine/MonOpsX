@@ -113,8 +113,6 @@ async def connect_to_mongo():
         settings.mongo_connection_uri
     )
     
-    print(settings.mongo_connection_uri)
-
     await client.admin.command("ping")
 
     print("✅ MongoDB Connected")
@@ -175,6 +173,10 @@ async def create_global_indexes():
         "expires_at"
     )
 
+    await db.sessions.create_index(
+        "user_id"
+    )
+
 # ==========================================================
 # ACCOUNT INDEXES
 # ==========================================================
@@ -190,15 +192,18 @@ async def create_account_indexes(
     # Users
 
     await db.users.create_index(
-        "email",
+        "normalized_email",
         unique=True
     )
 
     # Roles
 
     await db.roles.create_index(
-        "name",
-        unique=True
+        "normalized_name",
+        unique=True,
+        partialFilterExpression={
+            "normalized_name": {"$type": "string"}
+        }
     )
 
     # Servers

@@ -17,6 +17,7 @@ class RoleRepository:
         role = Role(
             _id=ObjectId(),
             name="Admin",
+            normalized_name="ADMIN",
             permissions=PermissionHelper.getall_permissions(),
             is_default=True
         )
@@ -46,11 +47,16 @@ class RoleRepository:
     ) -> None:
         db = get_account_database(account_id)
 
-        role_data.modified_on = datetime.now(datetime.UTC)
+        role_data.updated_on = datetime.datetime.now(datetime.UTC)
 
         await db.roles.update_one(
             {"_id": role_data.id},
-            {"$set": role_data.model_dump(by_alias=True)}
+            {"$set": {
+                "name": role_data.name,
+                "normalized_name": role_data.normalized_name,
+                "permissions": role_data.permissions,
+                "updated_on": role_data.updated_on
+            }}
         )  
         
     @staticmethod
@@ -61,10 +67,10 @@ class RoleRepository:
         db = get_account_database(account_id)
 
         await db.roles.update_one(
-            {"_id": role_id},
+            {"_id": ObjectId(role_id)},
             {"$set": {
                 "is_deleted": True,
-                "deleted_on": datetime.now(datetime.UTC)
+                "deleted_on": datetime.datetime.now(datetime.UTC)
             }}
         )
     
@@ -111,7 +117,7 @@ class RoleRepository:
 
         role_data = await db.roles.find_one(
             {
-                "name": role_name,
+                "normalized_name": role_name.strip().upper(),
                 "is_deleted": False
             }
         )

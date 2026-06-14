@@ -125,3 +125,20 @@ class SessionRepository:
         )
 
         return str(result.deleted_count)
+
+    @staticmethod
+    async def delete_by_user_id(user_id: str) -> str:
+        db = get_app_database()
+        result = await db.sessions.delete_many({"user_id": user_id})
+        return str(result.deleted_count)
+
+    @staticmethod
+    async def delete_by_user_ids(user_ids: list[str]) -> str:
+        if not user_ids:
+            return "0"
+
+        db = get_app_database()
+        result = await db.sessions.delete_many(
+            {"user_id": {"$in": user_ids}}
+        )
+        return str(result.deleted_count)

@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from app.core.config import get_settings
 from app.models.global_models.session_model import SessionModel
 from app.repositories.accounts.user_repository import UserRepository
+from app.repositories.accounts.role_repository import RoleRepository
 from app.repositories.global_repo.session_repository import SessionRepository
 from app.repositories.global_repo.users_repository import UsersRepository
 from app.schemas.account_schema import CreateAccountRequest
@@ -57,7 +58,10 @@ class AuthService:
                 detail="Invalid email or password"
             )
 
-        if not user_data.get("is_active", True):
+        if (
+            not user_data.get("is_active", True)
+            and not user_data.get("is_first_login", False)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User is inactive"
@@ -71,6 +75,16 @@ class AuthService:
 
         user_id = str(user_data["_id"])
         account_id = user_data["account_id"]
+
+        local_user = await UserRepository.find_by_id(account_id, user_id)
+        if local_user is None:
+            raise HTTPException(status_code=401, detail="User is unavailable")
+
+        if user_data.get("is_first_login", False):
+            await UsersRepository.activate(user_id)
+            await UserRepository.activate(account_id, user_id)
+        elif not local_user.is_active:
+            raise HTTPException(status_code=403, detail="User is inactive")
 
         await UserRepository.update_last_login(
             account_id=account_id,
@@ -114,12 +128,17 @@ class AuthService:
         new_refresh_token = token_urlsafe(48)
         expires_at = AuthService._refresh_expiration()
 
+        authorization = await AuthService._load_authorization(
+            account_id=user_data["account_id"],
+            user_id=session.user_id
+        )
         response = AuthService._build_auth_response(
             user_id=session.user_id,
             account_id=user_data["account_id"],
             email=user_data["email"],
             session_id=session.id,
-            refresh_token=new_refresh_token
+            refresh_token=new_refresh_token,
+            **authorization
         )
 
         await SessionRepository.rotate_refresh_token(
@@ -151,12 +170,17 @@ class AuthService:
             expires_at=AuthService._refresh_expiration()
         )
 
+        authorization = await AuthService._load_authorization(
+            account_id=account_id,
+            user_id=user_id
+        )
         response = AuthService._build_auth_response(
             user_id=user_id,
             account_id=account_id,
             email=email,
             session_id=session_id,
-            refresh_token=refresh_token
+            refresh_token=refresh_token,
+            **authorization
         )
 
         await SessionRepository.create(session)
@@ -169,14 +193,20 @@ class AuthService:
         account_id: str,
         email: str,
         session_id: str,
-        refresh_token: str
+        refresh_token: str,
+        role_id: str,
+        permissions: list[int],
+        is_principal: bool
     ) -> dict:
         access_token = create_access_token({
             "sub": user_id,
             "user_id": user_id,
             "account_id": account_id,
             "session_id": session_id,
-            "email": email
+            "email": email,
+            "role_id": role_id,
+            "permissions": permissions,
+            "is_principal": is_principal
         })
 
         return {
@@ -185,7 +215,29 @@ class AuthService:
             "email": email,
             "access_token": access_token,
             "refresh_token": refresh_token,
+            "role_id": role_id,
+            "permissions": permissions,
+            "is_principal": is_principal,
             "token_type": "bearer"
+        }
+
+    @staticmethod
+    async def _load_authorization(
+        account_id: str,
+        user_id: str
+    ) -> dict:
+        user = await UserRepository.find_by_id(account_id, user_id)
+        if user is None or not user.is_active:
+            raise HTTPException(status_code=401, detail="User is unavailable")
+
+        role = await RoleRepository.find_by_id(account_id, str(user.role_id))
+        if role is None:
+            raise HTTPException(status_code=401, detail="Role is unavailable")
+
+        return {
+            "role_id": str(role.id),
+            "permissions": role.permissions,
+            "is_principal": user.is_principal
         }
 
     @staticmethod

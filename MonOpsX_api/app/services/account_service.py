@@ -65,7 +65,9 @@ class AccountService:
             email=email,
             normalized_email=normalized_email,
             account_id=account_id,
-            database_hash_password=admin_password_hash
+            database_hash_password=admin_password_hash,
+            is_principal=True,
+            is_first_login=False
         )
 
         try:
