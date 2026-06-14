@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -20,6 +21,14 @@ class CreateUserRequest(BaseModel):
     def validate_password_size(cls, value: str) -> str:
         if len(value.encode("utf-8")) > 72:
             raise ValueError("Password must not exceed 72 bytes")
+        if not re.search(r"[A-Z]", value):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", value):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", value):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[^A-Za-z0-9]", value):
+            raise ValueError("Password must contain at least one special character")
         return value
 
 

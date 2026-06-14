@@ -1,0 +1,16 @@
+node_modules
+.expo
+dist
+web-build
+coverage
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.vscode
+.claude
+*.log
+*.tsbuildinfo
+android
+ios

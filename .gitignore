@@ -1,22 +1,32 @@
 # Python
 
 MonOpsX_api/.venv/
-MonOpsX_api/__pycache__/
+MonOpsX_api/**/__pycache__/
+MonOpsX_api/**/*.py[cod]
 MonOpsX_api/.pytest_cache/
 
 # Environment
 
 **/.env
+**/.env.*
+!**/.env.example
 
 
 # Mongo
 
 *.db
 
-# Node
+# Expo / Node
 
-MonOpsX_ui/node_modules/
-MonOpsX_ui/.expo/
+MonOpsX_app/node_modules/
+MonOpsX_app/.expo/
+MonOpsX_app/dist/
+MonOpsX_app/web-build/
+MonOpsX_app/coverage/
+MonOpsX_app/android/
+MonOpsX_app/ios/
+MonOpsX_app/expo-env.d.ts
+MonOpsX_app/*.tsbuildinfo
 
 # Logs
 

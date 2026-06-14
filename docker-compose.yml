@@ -12,6 +12,7 @@ services:
 
   api:
     build: ./MonOpsX_api
+    image: monopsx-api:1.0.0
     env_file:
       - ./MonOpsX_api/.env
     environment:
@@ -20,6 +21,20 @@ services:
       - "8000:8000"
     depends_on:
       - mongodb
+
+  app:
+    build:
+      context: ./MonOpsX_app
+    image: monopsx-app:1.0.0
+    environment:
+      CI: "1"
+      EXPO_PUBLIC_API_URL: http://${HOST_IP:-localhost}:8000
+      EXPO_NO_TELEMETRY: "1"
+      REACT_NATIVE_PACKAGER_HOSTNAME: ${HOST_IP:-localhost}
+    ports:
+      - "8081:8081"
+    depends_on:
+      - api
 
 volumes:
   mongodb_data:
