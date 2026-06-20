@@ -12,7 +12,8 @@ from app.controllers.auth_controller import router as auth_router
 from app.controllers.role_controller import router as role_router
 from app.controllers.user_controller import router as user_router
 from app.controllers.profile_controller import router as profile_router
-# from app.controllers.server_controller import router as server_router
+from app.controllers.server_controller import router as server_router
+from app.controllers.webhook_controller import router as webhook_router
 
 
 
@@ -73,4 +74,5 @@ app.include_router(auth_router)
 app.include_router(role_router)
 app.include_router(user_router)
 app.include_router(profile_router)
-# app.include_router(server_router)
+app.include_router(server_router)
+app.include_router(webhook_router)

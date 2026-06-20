@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    METRICS_CPU_ALERT_PERCENT: float = 85
+    METRICS_MEMORY_ALERT_PERCENT: float = 85
+    METRICS_DISK_ALERT_PERCENT: float = 90
 
     @property
     def mongo_connection_uri(self) -> str:

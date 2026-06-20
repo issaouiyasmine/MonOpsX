@@ -1,0 +1,17 @@
+[Unit]
+Description=MonOpsX server monitoring agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=monopsx-agent
+Group=monopsx-agent
+WorkingDirectory=/opt/monopsx-agent
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/monopsx-agent/.venv/bin/python /opt/monopsx-agent/agent.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

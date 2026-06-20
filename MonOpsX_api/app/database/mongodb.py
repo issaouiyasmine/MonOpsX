@@ -177,6 +177,21 @@ async def create_global_indexes():
         "user_id"
     )
 
+    # Server webhook tokens
+
+    await db.server_webhook_tokens.create_index(
+        "token_hash",
+        unique=True
+    )
+
+    await db.server_webhook_tokens.create_index(
+        [
+            ("account_id", 1),
+            ("server_id", 1),
+            ("revoked_at", 1)
+        ]
+    )
+
 # ==========================================================
 # ACCOUNT INDEXES
 # ==========================================================
