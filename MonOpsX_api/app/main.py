@@ -14,6 +14,7 @@ from app.controllers.user_controller import router as user_router
 from app.controllers.profile_controller import router as profile_router
 from app.controllers.server_controller import router as server_router
 from app.controllers.webhook_controller import router as webhook_router
+from app.controllers.chat_controller import router as chat_router
 
 
 
@@ -45,7 +46,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:8081",
         "http://127.0.0.1:8081",
-        "http://192.168.11.108:8081",
+        "http://192.168.11.109:8081",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -76,3 +77,4 @@ app.include_router(user_router)
 app.include_router(profile_router)
 app.include_router(server_router)
 app.include_router(webhook_router)
+app.include_router(chat_router)

@@ -2,39 +2,68 @@ services:
 
   mongodb:
     image: mongo:8
+    restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: "Password123!"
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     ports:
-      - "27018:27017"
+      - 27018:27017
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand({ ping: 1 })\" >/dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   api:
     build: ./MonOpsX_api
     image: monopsx-api:1.0.0
+    pull_policy: build
+    restart: unless-stopped
     env_file:
       - ./MonOpsX_api/.env
     environment:
       MONGO_HOST: mongodb
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
     ports:
-      - "8000:8000"
+      - "0.0.0.0:8000:8000"
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
 
-  app:
-    build:
-      context: ./MonOpsX_app
-    image: monopsx-app:1.0.0
+  ollama:
+    image: ollama/ollama:0.9.0
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  ollama-pull:
+    image: ollama/ollama:0.9.0
+    restart: "no"
     environment:
-      CI: "1"
-      EXPO_PUBLIC_API_URL: http://${HOST_IP:-localhost}:8000
-      EXPO_NO_TELEMETRY: "1"
-      REACT_NATIVE_PACKAGER_HOSTNAME: ${HOST_IP:-localhost}
-    ports:
-      - "8081:8081"
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+    volumes:
+      - ollama_data:/root/.ollama
     depends_on:
-      - api
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama"]
+    command: ["pull", "${OLLAMA_MODEL:-llama3.2:3b}"]
 
 volumes:
   mongodb_data:
+  ollama_data:

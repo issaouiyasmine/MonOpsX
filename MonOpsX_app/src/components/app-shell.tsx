@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { router, usePathname } from "expo-router";
+import { router, useLocalSearchParams, usePathname } from "expo-router";
 import { useEffect, useState, type PropsWithChildren } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ChatWidget } from "@/components/chat-widget";
 import { Permissions } from "@/constants/permissions";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
 import { useAuth } from "@/providers/auth-provider";
@@ -31,20 +32,29 @@ function Sidebar({ close }: { close?: () => void }) {
 
 export function AppShell({ title, children }: PropsWithChildren<{ title: string }>) {
   const { width } = useWindowDimensions();
+  const pathname = usePathname();
+  const params = useLocalSearchParams();
   const compact = width < 900;
   const [open, setOpen] = useState(false);
   const { profile, loading, load } = useProfile();
   useEffect(() => { if (!profile) load().catch(() => undefined); }, [profile, load]);
   const initials = profile ? `${profile.user.first_name[0] ?? ""}${profile.user.last_name[0] ?? ""}`.toUpperCase() : "MX";
+  const serverId = pathname.includes("/servers/details") ? paramValue(params.serverId) : undefined;
+  const serverLabel = pathname.includes("/servers/details") ? paramValue(params.serverName) ?? paramValue(params.hostname) : undefined;
   return <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
     <View style={styles.layout}>{!compact && <Sidebar />}
       <View style={styles.main}>
         <View style={styles.header}>{compact && <Pressable onPress={() => setOpen(true)} style={styles.iconButton}><Ionicons name="menu" size={24} color={colors.text} /></Pressable>}<Text style={styles.pageTitle}>{title}</Text><Pressable style={styles.account} onPress={() => router.push("/(main)/profile" as never)}><View style={styles.accountText}>{loading ? <ActivityIndicator color={colors.primary} size="small" /> : <><Text numberOfLines={1} style={styles.accountName}>{profile?.account.name ?? "MonOpsX"}</Text><Text numberOfLines={1} style={styles.accountEmail}>{profile?.user.email ?? "Profil"}</Text></>}</View><View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View></Pressable></View>
         <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>{children}</ScrollView>
+        <ChatWidget serverId={serverId} serverLabel={serverLabel} />
       </View>
     </View>
     <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}><Pressable style={styles.overlay} onPress={() => setOpen(false)}><Pressable style={styles.drawer} onPress={(e) => e.stopPropagation()}><Sidebar close={() => setOpen(false)} /></Pressable></Pressable></Modal>
   </SafeAreaView>;
+}
+
+function paramValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 const styles = StyleSheet.create({

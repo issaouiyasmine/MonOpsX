@@ -250,6 +250,22 @@ async def create_account_indexes(
         ]
     )
 
+    # Chat history
+
+    await db.chat_messages.create_index(
+        [
+            ("user_id", 1),
+            ("created_at", -1)
+        ]
+    )
+
+    await db.chat_messages.create_index(
+        [
+            ("server_id", 1),
+            ("created_at", -1)
+        ]
+    )
+
 # ==========================================================
 # HELPERS
 # ==========================================================

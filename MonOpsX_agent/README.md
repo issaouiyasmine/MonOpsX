@@ -65,3 +65,26 @@ sudo systemctl disable monopsx-agent
 ```
 
 The service starts after the network is online and restarts automatically if the agent crashes.
+
+## Ollama Assistant Setup
+
+The MonOpsX API can use Ollama to answer questions about saved server metrics. Docker Compose starts Ollama and automatically pulls the default model through the `ollama-pull` one-shot service:
+
+```bash
+docker compose up -d --build
+```
+
+The first startup can take time because `llama3.2:3b` must be downloaded into the `ollama_data` volume. Later startups reuse the downloaded model.
+
+Check the puller logs:
+
+```bash
+docker compose logs ollama-pull
+```
+
+The API expects:
+
+```env
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.2:3b
+```

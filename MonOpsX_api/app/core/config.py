@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     METRICS_CPU_ALERT_PERCENT: float = 85
     METRICS_MEMORY_ALERT_PERCENT: float = 85
     METRICS_DISK_ALERT_PERCENT: float = 90
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:3b"
+    OLLAMA_TIMEOUT_SECONDS: int = 120
+    CHAT_METRICS_LIMIT: int = 100
+    CHAT_HISTORY_LIMIT: int = 30
 
     @property
     def mongo_connection_uri(self) -> str:
