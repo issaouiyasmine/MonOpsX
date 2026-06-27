@@ -43,7 +43,7 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
         const history = await ChatService.getHistory();
         if (mounted) setMessages(history.messages);
       } catch {
-        if (mounted) setError("Unable to load chat history.");
+        if (mounted) setError("Impossible de charger l'historique du chat.");
       } finally {
         if (mounted) setLoadingHistory(false);
       }
@@ -85,7 +85,7 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
     } catch {
       setMessages((current) => current.filter((item) => item.id !== optimistic.id));
       setDraft(message);
-      setError("Assistant is unavailable. Check API/Ollama and try again.");
+      setError("L'assistant est indisponible. Vérifiez l'API/Ollama puis réessayez.");
     } finally {
       setSending(false);
     }
@@ -97,7 +97,7 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
       await ChatService.clearHistory();
       setMessages([]);
     } catch {
-      setError("Unable to clear chat history.");
+      setError("Impossible d'effacer l'historique du chat.");
     }
   }
 
@@ -109,7 +109,7 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
             <View style={styles.titleWrap}>
               <Text style={styles.title}>MonOpsX Assistant</Text>
               <Text style={styles.context} numberOfLines={1}>
-                {serverId ? `Server: ${serverLabel || serverId}` : "Global server context"}
+                {serverId ? `Serveur : ${serverLabel || serverId}` : "Contexte global des serveurs"}
               </Text>
             </View>
             <View style={styles.headerActions}>
@@ -131,14 +131,14 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
             {loadingHistory && (
               <View style={styles.emptyState}>
                 <ActivityIndicator color={colors.primary} />
-                <Text style={styles.emptyText}>Loading history</Text>
+                <Text style={styles.emptyText}>Chargement de l'historique</Text>
               </View>
             )}
 
             {!loadingHistory && messages.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="sparkles-outline" size={26} color={colors.primary} />
-                <Text style={styles.emptyText}>Ask for a recap, incident analysis, or status prediction.</Text>
+                <Text style={styles.emptyText}>Demandez un récapitulatif, une analyse d'incident ou une prévision d'état.</Text>
               </View>
             )}
 
@@ -150,7 +150,7 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
                   message.role === "user" ? styles.userBubble : styles.assistantBubble,
                 ]}
               >
-                <Text style={styles.messageRole}>{message.role === "user" ? "You" : "Assistant"}</Text>
+                <Text style={styles.messageRole}>{message.role === "user" ? "Vous" : "Assistant"}</Text>
                 <Text style={styles.messageText}>{message.content}</Text>
               </View>
             ))}
@@ -168,7 +168,7 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder="Ask about servers or metrics..."
+              placeholder="Posez une question sur les serveurs ou les métriques..."
               placeholderTextColor={colors.muted}
               style={styles.input}
               multiline

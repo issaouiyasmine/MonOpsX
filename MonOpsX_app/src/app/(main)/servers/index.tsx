@@ -21,7 +21,7 @@ export default function Servers() {
         const data = await ServerService.getAll();
         if (mounted) setServers(data);
       } catch {
-        if (mounted) setError("Unable to load servers.");
+        if (mounted) setError("Impossible de charger les serveurs.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -49,14 +49,14 @@ export default function Servers() {
     <AppShell title="Serveurs">
       <View style={styles.page}>
         <View>
-          <Text style={styles.heading}>Monitored servers</Text>
-          <Text style={styles.subheading}>Open a server to inspect its dedicated Grafana metrics.</Text>
+          <Text style={styles.heading}>Serveurs surveillés</Text>
+          <Text style={styles.subheading}>Ouvrez un serveur pour consulter ses métriques Grafana dédiées.</Text>
         </View>
 
         {loading && (
           <View style={styles.stateCard}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={styles.stateText}>Loading servers</Text>
+            <Text style={styles.stateText}>Chargement des serveurs</Text>
           </View>
         )}
 
@@ -70,7 +70,7 @@ export default function Servers() {
         {!loading && !error && servers.length === 0 && (
           <View style={styles.stateCard}>
             <Ionicons name="server-outline" size={32} color={colors.muted} />
-            <Text style={styles.stateText}>No servers registered yet.</Text>
+            <Text style={styles.stateText}>Aucun serveur enregistré pour le moment.</Text>
           </View>
         )}
 
@@ -94,7 +94,7 @@ export default function Servers() {
                 <View style={styles.metricsRow}>
                   <Metric label="CPU" value={metricValue(server.latest_metrics.cpu_percent)} />
                   <Metric label="RAM" value={metricValue(server.latest_metrics.memory_percent)} />
-                  <Metric label="Disk" value={metricValue(server.latest_metrics.disk_percent)} />
+                  <Metric label="Disque" value={metricValue(server.latest_metrics.disk_percent)} />
                 </View>
               </Pressable>
             ))}

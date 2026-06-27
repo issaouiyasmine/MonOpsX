@@ -36,9 +36,9 @@ export default function ServerDetails() {
         const servers = await ServerService.getAll();
         const found = servers.find((item) => item.id === serverId);
         if (mounted && found) setServer(serverFromRecord(found));
-        if (mounted && !found) setServerError("Server not found.");
+        if (mounted && !found) setServerError("Serveur introuvable.");
       } catch {
-        if (mounted) setServerError("Unable to load server details.");
+        if (mounted) setServerError("Impossible de charger les détails du serveur.");
       } finally {
         if (mounted) setLoadingServer(false);
       }
@@ -51,21 +51,21 @@ export default function ServerDetails() {
   }, [params]);
 
   return (
-    <AppShell title="Server details">
+    <AppShell title="Détails du serveur">
       {loadingServer && (
         <View style={styles.stateCard}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.stateText}>Loading server</Text>
+          <Text style={styles.stateText}>Chargement du serveur</Text>
         </View>
       )}
 
       {!loadingServer && (!server?.serverId || serverError) && (
         <View style={styles.stateCard}>
           <Ionicons name="warning-outline" size={30} color={colors.alert} />
-          <Text style={styles.stateTitle}>{serverError ?? "No server selected"}</Text>
+          <Text style={styles.stateTitle}>{serverError ?? "Aucun serveur sélectionné"}</Text>
           <Pressable style={styles.secondaryButton} onPress={() => router.push("/(main)/servers" as never)}>
             <Ionicons name="arrow-back-outline" size={18} color={colors.text} />
-            <Text style={styles.secondaryButtonText}>Back to servers</Text>
+            <Text style={styles.secondaryButtonText}>Retour aux serveurs</Text>
           </Pressable>
         </View>
       )}
@@ -96,31 +96,31 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
     <View style={styles.page}>
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.heading}>{server.serverName || server.hostname || "Server metrics"}</Text>
+          <Text style={styles.heading}>{server.serverName || server.hostname || "Métriques du serveur"}</Text>
           <Text style={styles.subheading}>
-            Grafana metrics filtered for {server.hostname || server.ip || server.serverId}.
+            Métriques Grafana filtrées pour {server.hostname || server.ip || server.serverId}.
           </Text>
         </View>
         {selectedDashboard && (
           <Pressable style={styles.openButton} onPress={openGrafana}>
             <Ionicons name="open-outline" size={18} color={colors.text} />
-            <Text style={styles.openButtonText}>Open in Grafana</Text>
+            <Text style={styles.openButtonText}>Ouvrir dans Grafana</Text>
           </Pressable>
         )}
       </View>
 
       <View style={styles.identityRow}>
-        <Identity label="Server ID" value={server.serverId} />
-        <Identity label="Hostname" value={server.hostname || "--"} />
+        <Identity label="ID du serveur" value={server.serverId} />
+        <Identity label="Nom d'hôte" value={server.hostname || "--"} />
         <Identity label="IP" value={server.ip || "--"} />
       </View>
 
       {!config.configured && (
         <View style={styles.stateCard}>
           <Ionicons name="analytics-outline" size={34} color={colors.primary} />
-          <Text style={styles.stateTitle}>Server Grafana dashboard is not configured</Text>
+          <Text style={styles.stateTitle}>Le tableau de bord Grafana du serveur n'est pas configuré</Text>
           <Text style={styles.stateText}>
-            Add EXPO_PUBLIC_GRAFANA_SERVER_DASHBOARDS with placeholders like {"{serverId}"}, {"{hostname}"}, or {"{ip}"}.
+            Ajoutez EXPO_PUBLIC_GRAFANA_SERVER_DASHBOARDS avec des variables comme {"{serverId}"}, {"{hostname}"} ou {"{ip}"}.
           </Text>
         </View>
       )}
@@ -129,7 +129,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
         <View style={styles.alert}>
           <Ionicons name="warning-outline" size={20} color={colors.alert} />
           <View style={styles.alertTextWrap}>
-            <Text style={styles.alertTitle}>Grafana configuration needs attention</Text>
+            <Text style={styles.alertTitle}>La configuration Grafana nécessite votre attention</Text>
             {config.errors.map((error) => (
               <Text key={error} style={styles.alertText}>
                 {error}
@@ -176,7 +176,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
               <View style={styles.alert}>
                 <Ionicons name="information-circle-outline" size={20} color={colors.info} />
                 <Text style={styles.alertText}>
-                  Grafana did not load inside the app. Confirm Grafana allows embedding and that the server variables exist.
+                  Grafana ne s'est pas chargé dans l'application. Vérifiez que l'intégration est autorisée et que les variables du serveur existent.
                 </Text>
               </View>
             )}

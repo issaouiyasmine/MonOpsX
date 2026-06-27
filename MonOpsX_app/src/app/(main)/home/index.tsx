@@ -34,13 +34,13 @@ export default function Home() {
       <View style={styles.page}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.heading}>Global server status</Text>
-            <Text style={styles.subheading}>Grafana recap of all monitored servers.</Text>
+            <Text style={styles.heading}>État global des serveurs</Text>
+            <Text style={styles.subheading}>Récapitulatif Grafana de tous les serveurs surveillés.</Text>
           </View>
           {selectedDashboard && (
             <Pressable style={styles.openButton} onPress={openGrafana}>
               <Ionicons name="open-outline" size={18} color={colors.text} />
-              <Text style={styles.openButtonText}>Open in Grafana</Text>
+              <Text style={styles.openButtonText}>Ouvrir dans Grafana</Text>
             </Pressable>
           )}
         </View>
@@ -51,7 +51,7 @@ export default function Home() {
           <View style={styles.alert}>
             <Ionicons name="warning-outline" size={20} color={colors.alert} />
             <View style={styles.alertTextWrap}>
-              <Text style={styles.alertTitle}>Grafana configuration needs attention</Text>
+              <Text style={styles.alertTitle}>La configuration Grafana nécessite votre attention</Text>
               {config.errors.map((error) => (
                 <Text key={error} style={styles.alertText}>
                   {error}
@@ -64,8 +64,8 @@ export default function Home() {
         {config.configured && !selectedDashboard && (
           <View style={styles.emptyCard}>
             <Ionicons name="analytics-outline" size={34} color={colors.muted} />
-            <Text style={styles.emptyTitle}>No valid dashboards found</Text>
-            <Text style={styles.emptyText}>Check EXPO_PUBLIC_GRAFANA_DASHBOARDS and use the format Title|URL.</Text>
+            <Text style={styles.emptyTitle}>Aucun tableau de bord valide trouvé</Text>
+            <Text style={styles.emptyText}>Vérifiez EXPO_PUBLIC_GRAFANA_DASHBOARDS et utilisez le format Titre|URL.</Text>
           </View>
         )}
 
@@ -106,7 +106,7 @@ export default function Home() {
                 <View style={styles.alert}>
                   <Ionicons name="information-circle-outline" size={20} color={colors.info} />
                   <Text style={styles.alertText}>
-                    Grafana did not load inside the app. Confirm Grafana allows embedding, then try opening it directly.
+                    Grafana ne s'est pas chargé dans l'application. Vérifiez que l'intégration est autorisée, puis essayez de l'ouvrir directement.
                   </Text>
                 </View>
               )}
@@ -132,9 +132,9 @@ function EmptyState() {
   return (
     <View style={styles.emptyCard}>
       <Ionicons name="analytics-outline" size={36} color={colors.primary} />
-      <Text style={styles.emptyTitle}>Grafana dashboard is not configured</Text>
+      <Text style={styles.emptyTitle}>Le tableau de bord Grafana n'est pas configuré</Text>
       <Text style={styles.emptyText}>
-        Add EXPO_PUBLIC_GRAFANA_BASE_URL and EXPO_PUBLIC_GRAFANA_GLOBAL_DASHBOARDS to your Expo environment.
+        Ajoutez EXPO_PUBLIC_GRAFANA_BASE_URL et EXPO_PUBLIC_GRAFANA_GLOBAL_DASHBOARDS à votre environnement Expo.
       </Text>
     </View>
   );

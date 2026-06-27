@@ -1,5 +1,23 @@
 services:
-
+  app:
+    build:
+      context: ./MonOpsX_app
+    image: monopsx-app:1.0.0
+    pull_policy: build
+    restart: unless-stopped
+    environment:
+      CI: "1"
+      # Local web/emulator development uses localhost.
+      # Deployment: replace with a public API URL, for example https://api.your-domain.com.
+      # Physical phone on Wi-Fi: localhost is the phone itself, so use a LAN IP or deployed URL.
+      EXPO_PUBLIC_API_URL: http://localhost:8000
+      EXPO_NO_TELEMETRY: "1"
+      REACT_NATIVE_PACKAGER_HOSTNAME: localhost
+    ports:
+      - "8081:8081"
+    depends_on:
+      api:
+        condition: service_started
   mongodb:
     image: mongo:8
     restart: unless-stopped

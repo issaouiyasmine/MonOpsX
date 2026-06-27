@@ -20,7 +20,7 @@ function createIframe(url: string, onLoad?: () => void, onError?: () => void) {
   return (
     <iframe
       src={url}
-      title="Grafana dashboard"
+      title="Tableau de bord Grafana"
       onLoad={onLoad}
       onError={onError}
       allowFullScreen
