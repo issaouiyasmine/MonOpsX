@@ -30,7 +30,7 @@ export default function Home() {
   }
 
   return (
-    <AppShell title="Dashboard">
+    <AppShell title="Tableau de bord">
       <View style={styles.page}>
         <View style={styles.headerRow}>
           <View>

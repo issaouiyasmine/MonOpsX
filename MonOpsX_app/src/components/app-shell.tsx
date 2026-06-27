@@ -12,7 +12,7 @@ import { useProfile } from "@/providers/profile-provider";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 const items: { label: string; path: string; icon: IconName; permissions?: number[] }[] = [
-  { label: "Dashboard", path: "/(main)/home", icon: "grid-outline" },
+  { label: "Tableau de bord", path: "/(main)/home", icon: "grid-outline" },
   { label: "Serveurs", path: "/(main)/servers", icon: "server-outline" },
   { label: "Administration", path: "/(main)/administrations", icon: "people-outline", permissions: [Permissions.USERS_ACCESS, Permissions.ROLES_ACCESS] },
   { label: "Paramètres", path: "/(main)/settings", icon: "settings-outline" },
@@ -24,7 +24,7 @@ function Sidebar({ close }: { close?: () => void }) {
   const { clear } = useProfile();
   const visible = items.filter((item) => !item.permissions || item.permissions.some((p) => session?.permissions.includes(p)));
   return <View style={styles.sidebar}>
-    <View style={styles.brand}><Image source={require("@/assets/images/logo-monopsx.png")} style={styles.logo} contentFit="contain" /><View><Text style={styles.brandName}>MONOPS<Text style={styles.brandX}>X</Text></Text><Text style={styles.brandCaption}>SERVER MONITORING</Text></View></View>
+    <View style={styles.brand}><Image source={require("@/assets/images/logo-monopsx.png")} style={styles.logo} contentFit="contain" /><View><Text style={styles.brandName}>MONOPS<Text style={styles.brandX}>X</Text></Text><Text style={styles.brandCaption}>SURVEILLANCE SERVEURS</Text></View></View>
     <View style={styles.nav}>{visible.map((item) => { const active = pathname.startsWith(item.path.replace("/(main)", "")); return <Pressable key={item.path} onPress={() => { router.push(item.path as never); close?.(); }} style={[styles.navItem, active && styles.navActive]}><Ionicons name={item.icon} size={21} color={active ? colors.primary : colors.muted} /><Text style={[styles.navText, active && styles.navTextActive]}>{item.label}</Text></Pressable>; })}</View>
     <Pressable style={styles.navItem} onPress={async () => { await logout(); clear(); router.replace("/(auth)/login"); }}><Ionicons name="log-out-outline" size={21} color={colors.muted} /><Text style={styles.navText}>Déconnexion</Text></Pressable>
   </View>;

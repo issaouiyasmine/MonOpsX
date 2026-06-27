@@ -48,9 +48,15 @@ export default function Servers() {
   return (
     <AppShell title="Serveurs">
       <View style={styles.page}>
-        <View>
-          <Text style={styles.heading}>Serveurs surveillés</Text>
-          <Text style={styles.subheading}>Ouvrez un serveur pour consulter ses métriques Grafana dédiées.</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.heading}>Serveurs surveillés</Text>
+            <Text style={styles.subheading}>Ouvrez un serveur pour consulter ses métriques Grafana dédiées.</Text>
+          </View>
+          <Pressable style={styles.addButton} onPress={() => router.push("/(main)/servers/create" as never)}>
+            <Ionicons name="add-outline" size={20} color={colors.text} />
+            <Text style={styles.addButtonText}>Ajouter un serveur</Text>
+          </Pressable>
         </View>
 
         {loading && (
@@ -85,6 +91,7 @@ export default function Servers() {
                   </Text>
                   <Ionicons name="chevron-forward" size={20} color={colors.muted} />
                 </View>
+                <Text style={styles.serverStatus}>{statusLabel(server.status)}</Text>
                 <Text style={styles.serverMeta} numberOfLines={1}>
                   {server.hostname}
                 </Text>
@@ -118,15 +125,30 @@ function metricValue(value: unknown) {
   return typeof value === "number" ? `${value.toFixed(0)}%` : "--";
 }
 
+function statusLabel(status: string) {
+  if (status === "online") return "En ligne";
+  if (status === "degraded") return "Dégradé";
+  if (status === "offline") return "Hors ligne";
+  return "En attente";
+}
+
 function statusStyle(status: string) {
   if (status === "online") return { backgroundColor: colors.success };
   if (status === "degraded") return { backgroundColor: colors.warning };
+  if (status === "offline") return { backgroundColor: colors.danger };
   return { backgroundColor: colors.muted };
 }
 
 const styles = StyleSheet.create({
   page: {
     gap: spacing.lg,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    flexWrap: "wrap",
   },
   heading: {
     color: colors.text,
@@ -137,6 +159,23 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     color: colors.muted,
     fontFamily: fonts.regular,
+    fontSize: typography.body,
+  },
+  addButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.primaryDark,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  addButtonText: {
+    color: colors.text,
+    fontFamily: fonts.medium,
     fontSize: typography.body,
   },
   stateCard: {
@@ -184,6 +223,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.bold,
     fontSize: typography.bodyLarge,
+  },
+  serverStatus: {
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: typography.caption,
   },
   serverMeta: {
     color: colors.muted,

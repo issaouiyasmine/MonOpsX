@@ -78,6 +78,50 @@ def get_account_database(
     ]
 
 
+# ==========================================================
+# SERVER DATABASE
+# ==========================================================
+
+def build_server_database_name(
+    server_id: str
+) -> str:
+    safe_server_id = "".join(
+        c
+        for c in server_id
+        if c.isalnum() or c == "_"
+    )
+
+    return f"server_{safe_server_id}"
+
+
+def get_server_database(
+    server_id: str
+) -> AsyncIOMotorDatabase:
+
+    return get_mongo_client()[
+        build_server_database_name(server_id)
+    ]
+
+
+async def create_server_indexes(
+    server_id: str,
+    month_collection_name: str
+) -> None:
+    db = get_server_database(server_id)
+    collection = db[month_collection_name]
+
+    await collection.create_index(
+        [
+            ("server_id", 1),
+            ("day", -1)
+        ]
+    )
+
+    await collection.create_index(
+        "samples.collected_at"
+    )
+
+
 async def create_account_database_user(
     account_id: str,
     password: str
@@ -232,14 +276,9 @@ async def create_account_indexes(
         "name"
     )
 
-    # Metrics
-
-    await db.server_metrics.create_index(
-        [
-            ("server_id", 1),
-            ("created_at", -1)
-        ]
-    )
+    # Metrics legacy
+    # Les nouvelles métriques sont stockées et indexées dans une base dédiée
+    # par serveur. Les anciennes collections de compte restent lues en fallback.
 
     # Alerts
 

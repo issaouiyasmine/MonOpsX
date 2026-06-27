@@ -1,13 +1,49 @@
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
+from bson import ObjectId
 from fastapi import HTTPException
 
+from app.models.account.server_model import Server
 from app.schemas.server import CreateServerRequest
 from app.services.server_service import ServerService
 
 
 class ServerServiceTests(unittest.IsolatedAsyncioTestCase):
+    def build_server(self, status: str, last_seen_at):
+        return Server(
+            _id=ObjectId(),
+            name="Machine locale",
+            hostname="localhost",
+            ip="127.0.0.1",
+            status=status,
+            last_seen_at=last_seen_at
+        )
+
+    def test_effective_status_keeps_recent_online_status(self):
+        now = datetime(2026, 6, 27, 12, 0, 0)
+        server = self.build_server("online", now - timedelta(seconds=30))
+
+        self.assertEqual(ServerService._effective_status(server, now), "online")
+
+    def test_effective_status_marks_stale_server_offline(self):
+        now = datetime(2026, 6, 27, 12, 0, 0)
+        server = self.build_server("online", now - timedelta(seconds=120))
+
+        self.assertEqual(ServerService._effective_status(server, now), "offline")
+
+    def test_effective_status_keeps_pending_when_never_seen(self):
+        server = self.build_server("pending", None)
+
+        self.assertEqual(ServerService._effective_status(server), "pending")
+
+    def test_effective_status_keeps_recent_degraded_status(self):
+        now = datetime(2026, 6, 27, 12, 0, 0)
+        server = self.build_server("degraded", now - timedelta(seconds=30))
+
+        self.assertEqual(ServerService._effective_status(server, now), "degraded")
+
     @patch("app.services.server_service.token_urlsafe", return_value="server-token")
     @patch("app.services.server_service.ServerTokenRepository.create", new_callable=AsyncMock)
     @patch("app.services.server_service.ServerRepository.create", new_callable=AsyncMock)

@@ -29,6 +29,27 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(next_state, {})
 
+    def test_get_interval_uses_configured_value(self):
+        with patch.dict(agent.os.environ, {"MONOPSX_INTERVAL_SECONDS": "30"}):
+            self.assertEqual(agent.get_interval(), 30)
+
+    def test_get_interval_uses_default_when_missing_or_invalid(self):
+        with patch.dict(agent.os.environ, {}, clear=True):
+            self.assertEqual(agent.get_interval(), 30)
+
+        with patch.dict(agent.os.environ, {"MONOPSX_INTERVAL_SECONDS": "abc"}):
+            self.assertEqual(agent.get_interval(), 30)
+
+    def test_get_interval_enforces_minimum(self):
+        with patch.dict(agent.os.environ, {"MONOPSX_INTERVAL_SECONDS": "1"}):
+            self.assertEqual(agent.get_interval(), 5)
+
+    def test_wait_until_next_run_sleeps_until_target(self):
+        with patch.object(agent.time, "monotonic", return_value=10), patch.object(agent.time, "sleep") as sleep:
+            agent.wait_until_next_run(40)
+
+        sleep.assert_called_once_with(30)
+
     @patch.object(agent, "requests")
     def test_post_payload_retries_then_succeeds(self, requests):
         failed_response = Mock()

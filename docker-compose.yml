@@ -7,9 +7,9 @@ services:
     restart: unless-stopped
     environment:
       CI: "1"
-      # Local web/emulator development uses localhost.
-      # Deployment: replace with a public API URL, for example https://api.your-domain.com.
-      # Physical phone on Wi-Fi: localhost is the phone itself, so use a LAN IP or deployed URL.
+      # Développement local web/émulateur avec localhost.
+      # Déploiement: remplacez par une URL publique, par exemple https://api.votre-domaine.com.
+      # Téléphone physique sur Wi-Fi: localhost pointe vers le téléphone, utilisez une IP LAN ou une URL déployée.
       EXPO_PUBLIC_API_URL: http://localhost:8000
       EXPO_NO_TELEMETRY: "1"
       REACT_NATIVE_PACKAGER_HOSTNAME: localhost
@@ -56,6 +56,27 @@ services:
       mongodb:
         condition: service_healthy
 
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SERVER_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Pour des tableaux de bord basés sur l'API, ajoutez une datasource JSON/Infinity
+      # dans Grafana et utilisez les URL de l'API MonOpsX depuis le réseau Docker.
+      # Tableaux globaux: vue de tous les serveurs.
+      # Tableaux serveur: filtrer avec server_id, hostname ou ip.
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      api:
+        condition: service_started
+
   ollama:
     image: ollama/ollama:0.9.0
     restart: unless-stopped
@@ -84,4 +105,5 @@ services:
 
 volumes:
   mongodb_data:
+  grafana_data:
   ollama_data:

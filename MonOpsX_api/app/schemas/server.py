@@ -14,7 +14,7 @@ class CreateServerRequest(BaseModel):
     def trim_required_text(cls, value: str) -> str:
         value = value.strip()
         if not value:
-            raise ValueError("Value is required")
+            raise ValueError("Valeur obligatoire")
         return value
 
 

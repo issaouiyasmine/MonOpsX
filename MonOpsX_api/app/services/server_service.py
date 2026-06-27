@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 
 from bson import ObjectId
@@ -12,6 +13,8 @@ from app.schemas.server import CreateServerRequest
 
 
 class ServerService:
+    OFFLINE_AFTER_SECONDS = 90
+
     @staticmethod
     def _response(server: Server) -> dict:
         return {
@@ -19,10 +22,28 @@ class ServerService:
             "name": server.name,
             "hostname": server.hostname,
             "ip": server.ip,
-            "status": server.status,
+            "status": ServerService._effective_status(server),
             "latest_metrics": server.latest_metrics,
             "last_seen_at": server.last_seen_at
         }
+
+    @staticmethod
+    def _effective_status(server: Server, now: datetime | None = None) -> str:
+        if server.last_seen_at is None:
+            return server.status
+
+        now = now or datetime.utcnow()
+        if now.tzinfo is not None:
+            now = now.astimezone(timezone.utc).replace(tzinfo=None)
+
+        last_seen_at = server.last_seen_at
+        if last_seen_at.tzinfo is not None:
+            last_seen_at = last_seen_at.astimezone(timezone.utc).replace(tzinfo=None)
+
+        if now - last_seen_at > timedelta(seconds=ServerService.OFFLINE_AFTER_SECONDS):
+            return "offline"
+
+        return server.status
 
     @staticmethod
     def _metric_response(metric) -> dict:

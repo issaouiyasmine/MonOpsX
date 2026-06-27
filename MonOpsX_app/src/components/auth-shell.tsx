@@ -29,7 +29,7 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.brandBlock}><Image source={require("@/assets/images/logo-monopsx.png")} style={styles.logoMark} contentFit="contain"/><View><Text style={styles.brand}>MONOPS<Text style={styles.brandX}>X</Text></Text><Text style={styles.brandCaption}>SERVER MONITORING</Text></View></View>
+          <View style={styles.brandBlock}><Image source={require("@/assets/images/logo-monopsx.png")} style={styles.logoMark} contentFit="contain"/><View><Text style={styles.brand}>MONOPS<Text style={styles.brandX}>X</Text></Text><Text style={styles.brandCaption}>SURVEILLANCE SERVEURS</Text></View></View>
 
           <View style={styles.card}>
             <Text style={styles.title}>{title}</Text>

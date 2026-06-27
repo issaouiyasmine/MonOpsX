@@ -25,6 +25,8 @@ except ImportError:  # pragma: no cover - Docker support is optional
 
 
 AGENT_VERSION = "1.0.0"
+DEFAULT_INTERVAL_SECONDS = 30
+MIN_INTERVAL_SECONDS = 5
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -48,7 +50,17 @@ def get_required_env(name: str) -> str:
 
 
 def get_interval() -> int:
-    return max(5, int(os.getenv("MONOPSX_INTERVAL_SECONDS", "30")))
+    raw_value = os.getenv("MONOPSX_INTERVAL_SECONDS", str(DEFAULT_INTERVAL_SECONDS)).strip()
+    try:
+        return max(MIN_INTERVAL_SECONDS, int(raw_value))
+    except ValueError:
+        return DEFAULT_INTERVAL_SECONDS
+
+
+def wait_until_next_run(next_run_at: float) -> None:
+    remaining = next_run_at - time.monotonic()
+    if remaining > 0:
+        time.sleep(remaining)
 
 
 def collect_system_metrics() -> dict[str, Any]:
@@ -179,15 +191,20 @@ def run_forever() -> None:
     token = get_required_env("MONOPSX_WEBHOOK_TOKEN")
     interval = get_interval()
     docker_state: dict[str, dict[str, Any]] = {}
+    next_run_at = time.monotonic()
+
+    print(f"Intervalle d'envoi: {interval} secondes")
 
     while True:
+        wait_until_next_run(next_run_at)
+        started_at = time.monotonic()
         try:
             payload, docker_state = build_payload(docker_state)
             post_payload(api_url, token, payload)
             print(f"[{datetime.now(timezone.utc).isoformat()}] metrics sent")
         except Exception as error:
             print(f"[{datetime.now(timezone.utc).isoformat()}] metrics send failed: {error}")
-        time.sleep(interval)
+        next_run_at = started_at + interval
 
 
 if __name__ == "__main__":

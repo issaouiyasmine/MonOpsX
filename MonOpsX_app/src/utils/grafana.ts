@@ -44,7 +44,7 @@ function resolveDashboardUrl(path: string, baseUrl: string | undefined) {
   }
 
   if (!baseUrl?.trim()) {
-    throw new Error("Relative dashboard URLs require EXPO_PUBLIC_GRAFANA_BASE_URL.");
+    throw new Error("Les URL relatives des tableaux de bord nécessitent EXPO_PUBLIC_GRAFANA_BASE_URL.");
   }
 
   return appendEmbedParams(new URL(trimmedPath.replace(/^\//, ""), withTrailingSlash(baseUrl.trim())));
@@ -86,7 +86,7 @@ function parseGrafanaDashboards(
       const dashboardPath = rawUrlParts.join("|").trim();
 
       if (!title || !dashboardPath) {
-        errors.push(`Dashboard entry ${index + 1} must use "Title|URL".`);
+        errors.push(`L'entrée Grafana ${index + 1} doit utiliser le format "Titre|URL".`);
         return null;
       }
 
@@ -99,7 +99,7 @@ function parseGrafanaDashboards(
           url: resolveDashboardUrl(resolvedPath, baseUrl),
         };
       } catch (error) {
-        errors.push(error instanceof Error ? error.message : `Dashboard entry ${index + 1} is invalid.`);
+        errors.push(error instanceof Error ? error.message : `L'entrée Grafana ${index + 1} est invalide.`);
         return null;
       }
     })
