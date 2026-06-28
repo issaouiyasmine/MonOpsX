@@ -1,21 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
+import { FormField } from "@/components/form-field";
 // Metro resolves this to .web.tsx or .native.tsx; eslint-import does not understand that Expo convention here.
 // eslint-disable-next-line import/no-unresolved
 import { GrafanaDashboardFrame } from "@/components/grafana-dashboard-frame";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
-import type { Server } from "@/models/server.model";
+import type { Server, ServerContainer, ServerEvent } from "@/models/server.model";
+import { useToast } from "@/providers/toast-provider";
 import { ServerService } from "@/services/server.service";
+import { getApiErrorMessage } from "@/utils/api-error";
 import { getServerGrafanaConfig, type GrafanaDashboard, type GrafanaServerContext } from "@/utils/grafana";
 
-type ServerDetailsTab = "informations" | "dashboards";
+type ServerDetailsTab = "informations" | "dashboards" | "containers";
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 export default function ServerDetails() {
+  const { showToast } = useToast();
   const params = useLocalSearchParams();
   const serverId = paramValue(params.serverId);
   const initialServer = serverFromValues(
@@ -29,20 +33,24 @@ export default function ServerDetails() {
   const [activeTab, setActiveTab] = useState<ServerDetailsTab>("informations");
   const [loadingServer, setLoadingServer] = useState(!initialServer && Boolean(serverId));
   const [serverError, setServerError] = useState<string | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [editingName, setEditingName] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [rotateOpen, setRotateOpen] = useState(false);
+  const [savingAction, setSavingAction] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     if (!serverId) {
-      setLoadingServer(false);
-      setServerError("Aucun serveur sélectionné.");
       return () => {
         mounted = false;
       };
     }
 
     async function loadServer() {
-      if (!server) setLoadingServer(true);
+      setLoadingServer(true);
       setServerError(null);
       try {
         const servers = await ServerService.getAll();
@@ -65,6 +73,77 @@ export default function ServerDetails() {
     };
   }, [serverId]);
 
+  function openEdit() {
+    if (!server) return;
+    setEditingName(server.name);
+    setActionsOpen(false);
+    setEditOpen(true);
+  }
+
+  function openDelete() {
+    setActionsOpen(false);
+    setDeleteOpen(true);
+  }
+
+  function openRotate() {
+    setActionsOpen(false);
+    setRotateOpen(true);
+  }
+
+  async function submitEdit() {
+    if (!server) return;
+    const name = editingName.trim();
+    if (!name) {
+      showToast("Le nom est obligatoire.", "warning");
+      return;
+    }
+
+    setSavingAction(true);
+    try {
+      const updated = await ServerService.update(server.id, { name });
+      setServer(updated);
+      setEditOpen(false);
+      showToast("Serveur modifié.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!server) return;
+
+    setSavingAction(true);
+    try {
+      await ServerService.delete(server.id);
+      setDeleteOpen(false);
+      showToast("Serveur supprimé.");
+      router.push("/(main)/servers" as never);
+    } catch (error) {
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
+  async function confirmRotateToken() {
+    if (!server) return;
+
+    setSavingAction(true);
+    try {
+      const rotated = await ServerService.rotateToken(server.id);
+      setServer((current) => (current ? { ...current, webhook_token: rotated.webhook_token } : current));
+      setRotateOpen(false);
+      const copied = await copyText(rotated.webhook_token);
+      showToast(copied ? "Token régénéré." : "Token régénéré. Vous pouvez le copier depuis la liste.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
   return (
     <AppShell title="Détails du serveur">
       {loadingServer && !server && (
@@ -78,16 +157,27 @@ export default function ServerDetails() {
         <View style={styles.stateCard}>
           <Ionicons name="warning-outline" size={30} color={colors.alert} />
           <Text style={styles.stateTitle}>{serverError ?? "Aucun serveur sélectionné."}</Text>
-          <Pressable style={styles.secondaryButton} onPress={() => router.push("/(main)/servers" as never)}>
+          <Pressable
+            accessibilityLabel="Retour aux serveurs"
+            style={styles.actionMenuButton}
+            onPress={() => router.push("/(main)/servers" as never)}
+          >
             <Ionicons name="arrow-back-outline" size={18} color={colors.text} />
-            <Text style={styles.secondaryButtonText}>Retour aux serveurs</Text>
           </Pressable>
         </View>
       )}
 
       {server?.id && (
         <View style={styles.page}>
-          <ServerHeader server={server} />
+          <ServerHeader
+            actionsOpen={actionsOpen}
+            server={server}
+            onCloseActions={() => setActionsOpen(false)}
+            onDelete={openDelete}
+            onEdit={openEdit}
+            onRotate={openRotate}
+            onToggleActions={() => setActionsOpen((open) => !open)}
+          />
 
           {serverError && (
             <View style={styles.alert}>
@@ -109,20 +199,106 @@ export default function ServerDetails() {
               label="Tableaux de bord"
               onPress={() => setActiveTab("dashboards")}
             />
+            <MainTab
+              active={activeTab === "containers"}
+              icon="cube-outline"
+              label="Conteneurs"
+              onPress={() => setActiveTab("containers")}
+            />
           </View>
 
-          {activeTab === "informations" ? (
-            <ServerInformation server={server} />
-          ) : (
-            <ServerGrafanaView server={serverToGrafanaContext(server)} />
+          {activeTab === "informations" && <ServerInformation server={server} />}
+          {activeTab === "dashboards" && <ServerGrafanaView server={serverToGrafanaContext(server)} />}
+          {activeTab === "containers" && (
+            <ServerContainers docker={server.latest_metrics.docker} events={server.latest_metrics.events} />
           )}
         </View>
       )}
+
+      <Modal visible={editOpen} transparent animationType="fade" onRequestClose={() => setEditOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Modifier le serveur</Text>
+              <Pressable accessibilityLabel="Fermer" onPress={() => setEditOpen(false)}>
+                <Ionicons name="close" size={24} color={colors.muted} />
+              </Pressable>
+            </View>
+            <FormField label="Nom" value={editingName} onChangeText={setEditingName} placeholder="Nom du serveur" />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.secondaryButton} onPress={() => setEditOpen(false)}>
+                <Text style={styles.secondaryButtonText}>Annuler</Text>
+              </Pressable>
+              <Pressable style={styles.primaryButton} disabled={savingAction} onPress={submitEdit}>
+                <Text style={styles.primaryButtonText}>{savingAction ? "Enregistrement" : "Enregistrer"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={rotateOpen} transparent animationType="fade" onRequestClose={() => setRotateOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Régénérer le token</Text>
+            <Text style={styles.confirmText}>
+              {server
+                ? `Régénérer le token de ${server.name} ? L'ancien token sera révoqué et l'agent devra être relancé avec le nouveau token.`
+                : ""}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.secondaryButton} onPress={() => setRotateOpen(false)}>
+                <Text style={styles.secondaryButtonText}>Annuler</Text>
+              </Pressable>
+              <Pressable style={styles.primaryButton} disabled={savingAction} onPress={confirmRotateToken}>
+                <Text style={styles.primaryButtonText}>{savingAction ? "Régénération" : "Régénérer"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={deleteOpen} transparent animationType="fade" onRequestClose={() => setDeleteOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Confirmation</Text>
+            <Text style={styles.confirmText}>
+              {server
+                ? `Supprimer le serveur ${server.name} ? Le token sera révoqué et l'agent ne pourra plus envoyer de métriques.`
+                : ""}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.secondaryButton} onPress={() => setDeleteOpen(false)}>
+                <Text style={styles.secondaryButtonText}>Annuler</Text>
+              </Pressable>
+              <Pressable style={styles.dangerButton} disabled={savingAction} onPress={confirmDelete}>
+                <Text style={styles.dangerButtonText}>{savingAction ? "Suppression" : "Supprimer"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </AppShell>
   );
 }
 
-function ServerHeader({ server }: { server: Server }) {
+function ServerHeader({
+  actionsOpen,
+  server,
+  onCloseActions,
+  onDelete,
+  onEdit,
+  onRotate,
+  onToggleActions,
+}: {
+  actionsOpen: boolean;
+  server: Server;
+  onCloseActions: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  onRotate: () => void;
+  onToggleActions: () => void;
+}) {
   return (
     <View style={styles.headerRow}>
       <View>
@@ -131,9 +307,42 @@ function ServerHeader({ server }: { server: Server }) {
           {server.hostname} - {server.ip}
         </Text>
       </View>
-      <View style={styles.statusPill}>
-        <View style={[styles.statusDot, statusStyle(server.status)]} />
-        <Text style={styles.statusText}>{statusLabel(server.status)}</Text>
+      <View style={styles.headerActions}>
+        <Pressable
+          accessibilityLabel="Retour aux serveurs"
+          style={styles.actionMenuButton}
+          onPress={() => router.push("/(main)/servers" as never)}
+        >
+          <Ionicons name="arrow-back-outline" size={18} color={colors.text} />
+        </Pressable>
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, statusStyle(server.status)]} />
+          <Text style={styles.statusText}>{statusLabel(server.status)}</Text>
+        </View>
+        <View style={styles.actionsMenuWrap}>
+          <Pressable accessibilityLabel="Actions du serveur" style={styles.actionMenuButton} onPress={onToggleActions}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+          </Pressable>
+          {actionsOpen && (
+            <>
+              <Pressable style={styles.actionScrim} onPress={onCloseActions} />
+              <View style={styles.actionMenu}>
+                <Pressable style={styles.actionMenuItem} onPress={onEdit}>
+                  <Ionicons name="create-outline" size={18} color={colors.text} />
+                  <Text style={styles.actionMenuText}>Modifier</Text>
+                </Pressable>
+                <Pressable style={styles.actionMenuItem} onPress={onRotate}>
+                  <Ionicons name="refresh-outline" size={18} color={colors.text} />
+                  <Text style={styles.actionMenuText}>Régénérer le token</Text>
+                </Pressable>
+                <Pressable style={styles.actionMenuItem} onPress={onDelete}>
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  <Text style={[styles.actionMenuText, styles.actionMenuDanger]}>Supprimer</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -159,7 +368,7 @@ function MainTab({
 }
 
 function ServerInformation({ server }: { server: Server }) {
-  const metrics = server.latest_metrics ?? {};
+  const metrics = server.latest_metrics;
   const uptime = durationValue(metrics.uptime_seconds);
 
   return (
@@ -168,6 +377,7 @@ function ServerInformation({ server }: { server: Server }) {
         <Identity label="ID du serveur" value={server.id} />
         <Identity label="Nom d'hôte" value={server.hostname || "--"} />
         <Identity label="Adresse IP" value={server.ip || "--"} />
+        <Identity label="Système d'exploitation" value={textValue(server.operating_system ?? metrics.operating_system)} />
         <Identity label="Dernière activité" value={formatDate(server.last_seen_at)} />
         <Identity label="Disponibilité" value={uptime} />
       </View>
@@ -180,6 +390,108 @@ function ServerInformation({ server }: { server: Server }) {
         <Metric label="Temps actif" value={uptime} />
         <Metric label="Version agent" value={textValue(metrics.agent_version)} />
       </View>
+
+    </View>
+  );
+}
+
+function ServerContainers({
+  docker,
+  events,
+}: {
+  docker: Server["latest_metrics"]["docker"];
+  events: Server["latest_metrics"]["events"];
+}) {
+  const containers = docker?.containers ?? [];
+  const latestEvents = events ?? [];
+
+  return (
+    <View style={styles.containersSection}>
+      <View>
+        <Text style={styles.sectionTitle}>Conteneurs</Text>
+        <Text style={styles.sectionSubtitle}>Statuts, images, dernier build, temps actif et événements récents.</Text>
+      </View>
+
+      {!docker?.available && (
+        <View style={styles.stateCard}>
+          <Ionicons name="cube-outline" size={32} color={colors.muted} />
+          <Text style={styles.stateTitle}>{"Docker n'est pas disponible"}</Text>
+          <Text style={styles.stateText}>{"L'agent n'a pas envoyé d'informations sur les conteneurs."}</Text>
+        </View>
+      )}
+
+      {docker?.available && containers.length === 0 && (
+        <View style={styles.stateCard}>
+          <Ionicons name="cube-outline" size={32} color={colors.muted} />
+          <Text style={styles.stateTitle}>Aucun conteneur détecté</Text>
+          <Text style={styles.stateText}>{"L'agent fonctionne, mais aucun conteneur Docker n'a été trouvé."}</Text>
+        </View>
+      )}
+
+      {docker?.available && containers.length > 0 && (
+        <View style={styles.containerList}>
+          {containers.map((container) => (
+            <ContainerRow key={`${container.name}-${container.image}`} container={container} />
+          ))}
+        </View>
+      )}
+
+      <View style={styles.eventsBlock}>
+        <Text style={styles.eventsTitle}>Événements</Text>
+        {latestEvents.length === 0 ? (
+          <Text style={styles.emptyText}>Aucun événement récent.</Text>
+        ) : (
+          <View style={styles.eventsList}>
+            {latestEvents.map((event, index) => (
+              <EventRow key={`${event.type}-${event.message}-${index}`} event={event} />
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function ContainerRow({ container }: { container: ServerContainer }) {
+  return (
+    <View style={styles.containerRow}>
+      <View style={styles.containerMain}>
+        <Text style={styles.containerName} numberOfLines={1}>
+          {container.name}
+        </Text>
+        <Text style={styles.containerImage} numberOfLines={1}>
+          {container.image}
+        </Text>
+      </View>
+      <InfoPill label="Statut" value={containerStatusLabel(container.status)} />
+      <InfoPill label="Dernier build" value={formatDate(container.last_build_at ?? null)} />
+      <InfoPill label="Temps actif" value={durationValue(container.uptime_seconds)} />
+      <InfoPill label="Redémarrages" value={String(container.restart_count ?? 0)} />
+    </View>
+  );
+}
+
+function EventRow({ event }: { event: ServerEvent }) {
+  return (
+    <View style={styles.eventRow}>
+      <View style={[styles.eventDot, severityStyle(event.severity)]} />
+      <View style={styles.eventContent}>
+        <Text style={styles.eventType}>
+          {eventTypeLabel(event.type)} - {severityLabel(event.severity)}
+        </Text>
+        <Text style={styles.eventMessage}>{event.message}</Text>
+      </View>
+    </View>
+  );
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoPill}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue} numberOfLines={1}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -221,7 +533,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
       {!config.configured && (
         <View style={styles.stateCard}>
           <Ionicons name="analytics-outline" size={34} color={colors.primary} />
-          <Text style={styles.stateTitle}>Le tableau de bord Grafana du serveur n'est pas configuré</Text>
+          <Text style={styles.stateTitle}>{"Le tableau de bord Grafana du serveur n'est pas configuré"}</Text>
           <Text style={styles.stateText}>
             Ajoutez EXPO_PUBLIC_GRAFANA_SERVER_DASHBOARDS avec des variables comme {"{serverId}"}, {"{hostname}"} ou {"{ip}"}.
           </Text>
@@ -279,7 +591,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
               <View style={styles.alert}>
                 <Ionicons name="information-circle-outline" size={20} color={colors.info} />
                 <Text style={styles.alertText}>
-                  Grafana ne s'est pas chargé dans l'application. Vérifiez que l'intégration est autorisée et que les variables du serveur existent.
+                  {"Grafana ne s'est pas chargé dans l'application. Vérifiez que l'intégration est autorisée et que les variables du serveur existent."}
                 </Text>
               </View>
             )}
@@ -333,6 +645,7 @@ function serverFromValues(
     name: serverName ?? "",
     hostname: hostname ?? "",
     ip: ip ?? "",
+    operating_system: null,
     status: "pending",
     latest_metrics: {},
     last_seen_at: null,
@@ -350,6 +663,18 @@ function serverToGrafanaContext(server: Server): GrafanaServerContext {
 
 function paramValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+async function copyText(value: string) {
+  const clipboard = globalThis.navigator?.clipboard;
+  if (!clipboard?.writeText) return false;
+
+  try {
+    await clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function percentValue(value: unknown) {
@@ -379,6 +704,34 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleString("fr-FR");
 }
 
+function containerStatusLabel(status: string) {
+  if (status === "running") return "En cours";
+  if (status === "exited") return "Arrêté";
+  if (status === "paused") return "En pause";
+  if (status === "restarting") return "Redémarrage";
+  return status || "--";
+}
+
+function eventTypeLabel(type: string) {
+  if (type === "deployment") return "Déploiement";
+  if (type === "crash") return "Incident";
+  if (type === "threshold") return "Seuil";
+  if (type === "status") return "Statut";
+  return "Information";
+}
+
+function severityLabel(severity: string) {
+  if (severity === "critical") return "Critique";
+  if (severity === "warning") return "Avertissement";
+  return "Info";
+}
+
+function severityStyle(severity: string) {
+  if (severity === "critical") return { backgroundColor: colors.danger };
+  if (severity === "warning") return { backgroundColor: colors.warning };
+  return { backgroundColor: colors.info };
+}
+
 function statusLabel(status: string) {
   if (status === "online") return "En ligne";
   if (status === "degraded") return "Dégradé";
@@ -403,6 +756,63 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
     flexWrap: "wrap",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flexWrap: "wrap",
+  },
+  actionsMenuWrap: {
+    position: "relative",
+    zIndex: 20,
+  },
+  actionMenuButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionScrim: {
+    position: "absolute",
+    top: -400,
+    right: -400,
+    bottom: -400,
+    left: -400,
+    zIndex: 1,
+  },
+  actionMenu: {
+    position: "absolute",
+    top: 46,
+    right: 0,
+    zIndex: 2,
+    minWidth: 220,
+    gap: spacing.xs,
+    borderRadius: radii.medium,
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionMenuItem: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radii.small,
+    paddingHorizontal: spacing.sm,
+  },
+  actionMenuText: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+  },
+  actionMenuDanger: {
+    color: colors.danger,
   },
   heading: {
     color: colors.text,
@@ -507,6 +917,102 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
+  },
+  containersSection: {
+    gap: spacing.md,
+  },
+  containerList: {
+    gap: spacing.sm,
+  },
+  containerRow: {
+    minHeight: 78,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    borderRadius: radii.medium,
+    padding: spacing.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  containerMain: {
+    flex: 1.4,
+    minWidth: 220,
+  },
+  containerName: {
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: typography.bodyLarge,
+  },
+  containerImage: {
+    marginTop: spacing.xs,
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.caption,
+  },
+  infoPill: {
+    minWidth: 130,
+    gap: spacing.xs,
+    borderRadius: radii.small,
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  infoLabel: {
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.caption,
+  },
+  infoValue: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+  },
+  eventsBlock: {
+    gap: spacing.sm,
+  },
+  eventsTitle: {
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: typography.bodyLarge,
+  },
+  eventsList: {
+    gap: spacing.sm,
+  },
+  eventRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    borderRadius: radii.medium,
+    padding: spacing.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  eventDot: {
+    width: 10,
+    height: 10,
+    marginTop: 5,
+    borderRadius: 5,
+  },
+  eventContent: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  eventType: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+  },
+  eventMessage: {
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.body,
+  },
+  emptyText: {
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.body,
   },
   metric: {
     width: 190,
@@ -674,5 +1180,71 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: typography.body,
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.md,
+    backgroundColor: colors.overlay,
+  },
+  modal: {
+    width: "100%",
+    maxWidth: 460,
+    gap: spacing.md,
+    borderRadius: radii.medium,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  modalTitle: {
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: typography.h3,
+  },
+  confirmText: {
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.body,
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    flexWrap: "wrap",
+  },
+  primaryButton: {
+    minHeight: 40,
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.primaryDark,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  primaryButtonText: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+  },
+  dangerButton: {
+    minHeight: 40,
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.danger,
+  },
+  dangerButtonText: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
   },
 });

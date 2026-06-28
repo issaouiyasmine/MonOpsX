@@ -2,6 +2,7 @@ from motor.motor_asyncio import (
     AsyncIOMotorClient,
     AsyncIOMotorDatabase
 )
+from pymongo.errors import PyMongoError
 
 from app.core.config import get_settings
 
@@ -162,6 +163,7 @@ async def connect_to_mongo():
     print("✅ MongoDB Connected")
 
     await create_global_indexes()
+    await create_all_account_indexes()
 
 
 async def close_mongo_connection():
@@ -240,6 +242,27 @@ async def create_global_indexes():
 # ACCOUNT INDEXES
 # ==========================================================
 
+async def create_all_account_indexes() -> None:
+    db = get_app_database()
+    accounts = await db.accounts.find(
+        {"is_deleted": False},
+        {"_id": 1}
+    ).to_list(length=None)
+
+    for account in accounts:
+        account_id = str(account.get("_id", "")).strip()
+        if not account_id:
+            continue
+
+        try:
+            await create_account_indexes(account_id)
+        except PyMongoError as error:
+            print(
+                "Impossible de mettre a jour les index du compte "
+                f"{account_id}: {error}"
+            )
+
+
 async def create_account_indexes(
     account_id: str
 ):
@@ -267,9 +290,15 @@ async def create_account_indexes(
 
     # Servers
 
+    ip_index = (await db.servers.index_information()).get("ip_1")
+    expected_ip_filter = {"is_deleted": False}
+    if ip_index and ip_index.get("partialFilterExpression") != expected_ip_filter:
+        await db.servers.drop_index("ip_1")
+
     await db.servers.create_index(
         "ip",
-        unique=True
+        unique=True,
+        partialFilterExpression=expected_ip_filter
     )
 
     await db.servers.create_index(

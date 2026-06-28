@@ -75,7 +75,7 @@ class ChatService:
         if server_id:
             server = await ServerRepository.find_by_id(account_id, server_id)
             if server is None:
-                raise HTTPException(status_code=404, detail="Server not found")
+                raise HTTPException(status_code=404, detail="Serveur introuvable")
             metrics = await ServerMetricRepository.get_recent(
                 account_id,
                 server_id,

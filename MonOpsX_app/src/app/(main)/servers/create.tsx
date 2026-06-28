@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
 import { FormField } from "@/components/form-field";
@@ -19,6 +19,8 @@ const initialForm: CreateServerPayload = {
   hostname: "",
   ip: "",
 };
+
+const agentDownloadUrl = process.env.EXPO_PUBLIC_MONOPSX_AGENT_DOWNLOAD_URL?.trim();
 
 export default function CreateServer() {
   const { showToast } = useToast();
@@ -66,6 +68,32 @@ export default function CreateServer() {
     } as never);
   }
 
+  async function copyToken() {
+    if (!createdServer) return;
+
+    try {
+      await globalThis.navigator?.clipboard?.writeText(createdServer.webhook_token);
+      showToast("Token copié.");
+    } catch {
+      showToast("Impossible de copier automatiquement. Le token reste sélectionnable.", "error");
+    }
+  }
+
+  async function copyCommand() {
+    if (!createdServer) return;
+
+    try {
+      await globalThis.navigator?.clipboard?.writeText(`python agent.py --token ${createdServer.webhook_token}`);
+      showToast("Commande copiée.");
+    } catch {
+      showToast("Impossible de copier automatiquement. La commande reste sélectionnable.", "error");
+    }
+  }
+
+  async function openAgentDownload() {
+    if (agentDownloadUrl) await Linking.openURL(agentDownloadUrl);
+  }
+
   return (
     <AppShell title="Créer un serveur">
       <View style={styles.page}>
@@ -73,15 +101,19 @@ export default function CreateServer() {
           <View>
             <Text style={styles.heading}>Nouveau serveur</Text>
             <Text style={styles.subheading}>
-              Créez le serveur, puis copiez le token dans la configuration de l'agent MonOpsX.
+              {"Créez le serveur, puis copiez le token dans la configuration de l'agent MonOpsX."}
             </Text>
           </View>
-          <Pressable style={styles.secondaryButton} onPress={() => router.push("/(main)/servers" as never)}>
+          <Pressable
+            accessibilityLabel="Retour aux serveurs"
+            style={styles.iconButton}
+            onPress={() => router.push("/(main)/servers" as never)}
+          >
             <Ionicons name="arrow-back-outline" size={18} color={colors.text} />
-            <Text style={styles.secondaryButtonText}>Retour aux serveurs</Text>
           </Pressable>
         </View>
 
+        {!createdServer ? (
         <View style={styles.formCard}>
           <FormField
             label="Nom"
@@ -107,28 +139,46 @@ export default function CreateServer() {
           />
           <PrimaryButton label="Créer le serveur" loading={saving} onPress={submit} />
         </View>
-
-        {createdServer && (
+        ) : (
           <View style={styles.tokenCard}>
             <View style={styles.tokenHeader}>
-              <Ionicons name="key-outline" size={22} color={colors.primary} />
-              <Text style={styles.tokenTitle}>Token de l'agent</Text>
+              <View style={styles.tokenTitleRow}>
+                <Ionicons name="key-outline" size={22} color={colors.primary} />
+                <Text style={styles.tokenTitle}>{"Token de l'agent"}</Text>
+              </View>
+              <Pressable accessibilityLabel="Copier le token" style={styles.iconButton} onPress={copyToken}>
+                <Ionicons name="copy-outline" size={18} color={colors.text} />
+              </Pressable>
             </View>
             <Text style={styles.tokenHelp}>
-              Ce token est affiché uniquement après la création. Ajoutez-le dans le fichier .env de l'agent.
+              {"Ce token est affiché uniquement après la création. Donnez-le à l'agent MonOpsX en ligne de commande."}
             </Text>
             <Text selectable style={styles.tokenValue}>
               {createdServer.webhook_token}
             </Text>
 
-            <View style={styles.instructions}>
-              <Instruction label="MONOPSX_API_URL" value="http://localhost:8000" />
-              <Instruction label="MONOPSX_WEBHOOK_TOKEN" value={createdServer.webhook_token} />
-              <Instruction label="MONOPSX_INTERVAL_SECONDS" value="30" />
+            <View style={styles.copyRow}>
+              <Text selectable style={styles.commandValue}>
+                python agent.py --token {createdServer.webhook_token}
+              </Text>
+              <Pressable accessibilityLabel="Copier la commande" style={styles.iconButton} onPress={copyCommand}>
+                <Ionicons name="copy-outline" size={18} color={colors.text} />
+              </Pressable>
             </View>
 
+            {agentDownloadUrl ? (
+              <Pressable style={styles.linkButton} onPress={openAgentDownload}>
+                <Ionicons name="logo-github" size={18} color={colors.primary} />
+                <Text style={styles.linkButtonText}>{"Télécharger l'agent"}</Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.deployNote}>
+                {"Configurez EXPO_PUBLIC_MONOPSX_AGENT_DOWNLOAD_URL pour afficher le lien GitHub de téléchargement de l'agent."}
+              </Text>
+            )}
+
             <Text style={styles.deployNote}>
-              Sur un serveur distant, remplacez l'URL locale par l'URL publique de l'API MonOpsX.
+              {"Pour plusieurs instances, créez un serveur séparé et utilisez un token différent pour chaque agent."}
             </Text>
 
             <Pressable style={styles.openButton} onPress={openDetails}>
@@ -139,17 +189,6 @@ export default function CreateServer() {
         )}
       </View>
     </AppShell>
-  );
-}
-
-function Instruction({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.instructionRow}>
-      <Text style={styles.instructionLabel}>{label}</Text>
-      <Text selectable style={styles.instructionValue}>
-        {value}
-      </Text>
-    </View>
   );
 }
 
@@ -222,12 +261,30 @@ const styles = StyleSheet.create({
   tokenHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    flexWrap: "wrap",
+  },
+  tokenTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   tokenTitle: {
     color: colors.text,
     fontFamily: fonts.bold,
     fontSize: typography.h3,
+  },
+  iconButton: {
+    width: 38,
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   tokenHelp: {
     color: colors.muted,
@@ -244,20 +301,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  instructions: {
+  copyRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
     gap: spacing.sm,
   },
-  instructionRow: {
-    gap: spacing.xs,
-  },
-  instructionLabel: {
-    color: colors.muted,
-    fontFamily: fonts.medium,
-    fontSize: typography.caption,
-  },
-  instructionValue: {
+  commandValue: {
+    flex: 1,
+    borderRadius: radii.small,
+    padding: spacing.md,
     color: colors.text,
-    fontFamily: fonts.regular,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  linkButton: {
+    minHeight: 38,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  linkButtonText: {
+    color: colors.primary,
+    fontFamily: fonts.medium,
     fontSize: typography.body,
   },
   deployNote: {

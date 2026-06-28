@@ -18,11 +18,25 @@ class CreateServerRequest(BaseModel):
         return value
 
 
+class UpdateServerRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def trim_required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Valeur obligatoire")
+        return value
+
+
 class ServerResponse(BaseModel):
     id: str
     name: str
     hostname: str
     ip: str
+    operating_system: Optional[str] = None
+    webhook_token: str
     status: str
     latest_metrics: dict[str, Any] = Field(default_factory=dict)
     last_seen_at: Optional[datetime] = None
@@ -44,6 +58,7 @@ class ServerMetricResponse(BaseModel):
     collected_at: datetime
     hostname: str
     ip: str
+    operating_system: Optional[str] = None
     metrics: dict[str, Any]
     docker: dict[str, Any] | None = None
     events: list[dict[str, Any]] = Field(default_factory=list)

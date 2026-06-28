@@ -1,17 +1,31 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
+import { FormField } from "@/components/form-field";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
 import type { Server } from "@/models/server.model";
+import { useToast } from "@/providers/toast-provider";
 import { ServerService } from "@/services/server.service";
+import { getApiErrorMessage } from "@/utils/api-error";
+
+const statusFilters = ["all", "pending", "online", "degraded", "offline"] as const;
+type StatusFilter = (typeof statusFilters)[number];
 
 export default function Servers() {
+  const { showToast } = useToast();
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [editingServer, setEditingServer] = useState<Server | null>(null);
+  const [editName, setEditName] = useState("");
+  const [serverToDelete, setServerToDelete] = useState<Server | null>(null);
+  const [serverToRotate, setServerToRotate] = useState<Server | null>(null);
+  const [savingAction, setSavingAction] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -33,6 +47,15 @@ export default function Servers() {
     };
   }, []);
 
+  const filteredServers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return servers.filter((server) => {
+      const matchesStatus = statusFilter === "all" || server.status === statusFilter;
+      const searchable = `${server.name} ${server.hostname} ${server.ip}`.toLowerCase();
+      return matchesStatus && (!query || searchable.includes(query));
+    });
+  }, [search, servers, statusFilter]);
+
   function openDetails(server: Server) {
     router.push({
       pathname: "/(main)/servers/details",
@@ -45,18 +68,123 @@ export default function Servers() {
     } as never);
   }
 
+  function openEdit(server: Server) {
+    setEditingServer(server);
+    setEditName(server.name);
+  }
+
+  async function copyToken(server: Server) {
+    if (!server.webhook_token) {
+      showToast("Le token de ce serveur n'est pas disponible.", "warning");
+      return;
+    }
+
+    if (await copyText(server.webhook_token)) {
+      showToast("Token copié.");
+    } else {
+      showToast("Impossible de copier automatiquement le token.", "error");
+    }
+  }
+
+  async function confirmRotateToken() {
+    if (!serverToRotate) return;
+
+    setSavingAction(true);
+    try {
+      const rotated = await ServerService.rotateToken(serverToRotate.id);
+      setServers((current) =>
+        current.map((server) =>
+          server.id === rotated.server_id ? { ...server, webhook_token: rotated.webhook_token } : server
+        )
+      );
+      setServerToRotate(null);
+      const copied = await copyText(rotated.webhook_token);
+      showToast(copied ? "Token régénéré." : "Token régénéré. Vous pouvez le copier depuis la liste.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
+  async function submitEdit() {
+    if (!editingServer) return;
+    const name = editName.trim();
+    if (!name) {
+      showToast("Le nom est obligatoire.", "warning");
+      return;
+    }
+
+    setSavingAction(true);
+    try {
+      const updated = await ServerService.update(editingServer.id, { name });
+      setServers((current) => current.map((server) => (server.id === updated.id ? updated : server)));
+      setEditingServer(null);
+      showToast("Serveur modifié.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!serverToDelete) return;
+
+    setSavingAction(true);
+    try {
+      await ServerService.delete(serverToDelete.id);
+      setServers((current) => current.filter((server) => server.id !== serverToDelete.id));
+      setServerToDelete(null);
+      showToast("Serveur supprimé.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setSavingAction(false);
+    }
+  }
+
   return (
     <AppShell title="Serveurs">
       <View style={styles.page}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.heading}>Serveurs surveillés</Text>
-            <Text style={styles.subheading}>Ouvrez un serveur pour consulter ses métriques Grafana dédiées.</Text>
+            <Text style={styles.subheading}>{"Recherchez un serveur par nom, nom d'hôte ou adresse IP."}</Text>
           </View>
           <Pressable style={styles.addButton} onPress={() => router.push("/(main)/servers/create" as never)}>
             <Ionicons name="add-outline" size={20} color={colors.text} />
             <Text style={styles.addButtonText}>Ajouter un serveur</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.filters}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={18} color={colors.muted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Rechercher par nom, nom d'hôte ou IP"
+              placeholderTextColor={colors.muted}
+              value={search}
+              onChangeText={setSearch}
+            />
+          </View>
+          <View style={styles.statusFilters}>
+            {statusFilters.map((status) => {
+              const active = statusFilter === status;
+              return (
+                <Pressable
+                  key={status}
+                  style={[styles.filterButton, active && styles.filterButtonActive]}
+                  onPress={() => setStatusFilter(status)}
+                >
+                  <Text style={[styles.filterButtonText, active && styles.filterButtonTextActive]}>
+                    {statusFilterLabel(status)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         {loading && (
@@ -80,49 +208,162 @@ export default function Servers() {
           </View>
         )}
 
-        {!loading && !error && servers.length > 0 && (
-          <View style={styles.grid}>
-            {servers.map((server) => (
-              <Pressable key={server.id} style={styles.serverCard} onPress={() => openDetails(server)}>
-                <View style={styles.serverHeader}>
-                  <View style={[styles.statusDot, statusStyle(server.status)]} />
+        {!loading && !error && servers.length > 0 && filteredServers.length === 0 && (
+          <View style={styles.stateCard}>
+            <Ionicons name="search-outline" size={32} color={colors.muted} />
+            <Text style={styles.stateText}>Aucun serveur ne correspond aux filtres.</Text>
+          </View>
+        )}
+
+        {!loading && !error && filteredServers.length > 0 && (
+          <View style={styles.table}>
+            <View style={[styles.tableRow, styles.tableHeader]}>
+              <Text style={[styles.headerCell, styles.nameCell]}>Nom</Text>
+              <Text style={[styles.headerCell, styles.statusCell]}>Statut</Text>
+              <Text style={[styles.headerCell, styles.actionsCell]}>Actions</Text>
+            </View>
+
+            {filteredServers.map((server) => (
+              <View key={server.id} style={styles.tableRow}>
+                <View style={styles.nameCell}>
                   <Text style={styles.serverName} numberOfLines={1}>
                     {server.name}
                   </Text>
-                  <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+                  <Text style={styles.serverMeta} numberOfLines={1}>
+                    {server.hostname} - {server.ip}
+                  </Text>
                 </View>
-                <Text style={styles.serverStatus}>{statusLabel(server.status)}</Text>
-                <Text style={styles.serverMeta} numberOfLines={1}>
-                  {server.hostname}
-                </Text>
-                <Text style={styles.serverMeta} numberOfLines={1}>
-                  {server.ip}
-                </Text>
-                <View style={styles.metricsRow}>
-                  <Metric label="CPU" value={metricValue(server.latest_metrics.cpu_percent)} />
-                  <Metric label="RAM" value={metricValue(server.latest_metrics.memory_percent)} />
-                  <Metric label="Disque" value={metricValue(server.latest_metrics.disk_percent)} />
+                <View style={styles.statusCell}>
+                  <View style={styles.statusPill}>
+                    <View style={[styles.statusDot, statusStyle(server.status)]} />
+                    <Text style={styles.statusText}>{statusLabel(server.status)}</Text>
+                  </View>
                 </View>
-              </Pressable>
+                <View style={styles.actionsCell}>
+                  <Pressable
+                    accessibilityLabel="Voir les détails"
+                    style={styles.actionIconButton}
+                    onPress={() => openDetails(server)}
+                  >
+                    <Ionicons name="eye-outline" size={18} color={colors.text} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Modifier le serveur"
+                    style={styles.actionIconButton}
+                    onPress={() => openEdit(server)}
+                  >
+                    <Ionicons name="create-outline" size={18} color={colors.text} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Copier le token"
+                    style={styles.actionIconButton}
+                    onPress={() => copyToken(server)}
+                  >
+                    <Ionicons name="key-outline" size={18} color={colors.text} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Régénérer le token"
+                    style={styles.actionIconButton}
+                    onPress={() => setServerToRotate(server)}
+                  >
+                    <Ionicons name="refresh-outline" size={18} color={colors.text} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Supprimer le serveur"
+                    style={[styles.actionIconButton, styles.dangerIconButton]}
+                    onPress={() => setServerToDelete(server)}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  </Pressable>
+                </View>
+              </View>
             ))}
           </View>
         )}
       </View>
+
+      <Modal visible={Boolean(editingServer)} transparent animationType="fade" onRequestClose={() => setEditingServer(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Modifier le serveur</Text>
+              <Pressable accessibilityLabel="Fermer" onPress={() => setEditingServer(null)}>
+                <Ionicons name="close" size={24} color={colors.muted} />
+              </Pressable>
+            </View>
+            <FormField label="Nom" value={editName} onChangeText={setEditName} placeholder="Nom du serveur" />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.secondaryButton} onPress={() => setEditingServer(null)}>
+                <Text style={styles.secondaryButtonText}>Annuler</Text>
+              </Pressable>
+              <Pressable style={styles.primaryButton} disabled={savingAction} onPress={submitEdit}>
+                <Text style={styles.primaryButtonText}>{savingAction ? "Enregistrement" : "Enregistrer"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={Boolean(serverToRotate)} transparent animationType="fade" onRequestClose={() => setServerToRotate(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Régénérer le token</Text>
+            <Text style={styles.confirmText}>
+              {serverToRotate
+                ? `Régénérer le token de ${serverToRotate.name} ? L'ancien token sera révoqué et l'agent devra être relancé avec le nouveau token.`
+                : ""}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.secondaryButton} onPress={() => setServerToRotate(null)}>
+                <Text style={styles.secondaryButtonText}>Annuler</Text>
+              </Pressable>
+              <Pressable style={styles.primaryButton} disabled={savingAction} onPress={confirmRotateToken}>
+                <Text style={styles.primaryButtonText}>{savingAction ? "Régénération" : "Régénérer"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={Boolean(serverToDelete)} transparent animationType="fade" onRequestClose={() => setServerToDelete(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Confirmation</Text>
+            <Text style={styles.confirmText}>
+              {serverToDelete
+                ? `Supprimer le serveur ${serverToDelete.name} ? Le token sera révoqué et l'agent ne pourra plus envoyer de métriques.`
+                : ""}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.secondaryButton} onPress={() => setServerToDelete(null)}>
+                <Text style={styles.secondaryButtonText}>Annuler</Text>
+              </Pressable>
+              <Pressable style={styles.dangerButton} disabled={savingAction} onPress={confirmDelete}>
+                <Text style={styles.dangerButtonText}>{savingAction ? "Suppression" : "Supprimer"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </AppShell>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
+function statusFilterLabel(status: StatusFilter) {
+  if (status === "all") return "Tous";
+  return statusLabel(status);
 }
 
-function metricValue(value: unknown) {
-  return typeof value === "number" ? `${value.toFixed(0)}%` : "--";
+async function copyText(value: string) {
+  const clipboard = globalThis.navigator?.clipboard;
+  if (!clipboard?.writeText) return false;
+
+  try {
+    await clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function statusLabel(status: string) {
@@ -178,6 +419,54 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: typography.body,
   },
+  filters: {
+    gap: spacing.md,
+  },
+  searchBox: {
+    minHeight: 46,
+    maxWidth: 640,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 180,
+    color: colors.text,
+    fontFamily: fonts.regular,
+    fontSize: typography.body,
+  },
+  statusFilters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  filterButton: {
+    minHeight: 36,
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterButtonActive: {
+    backgroundColor: "rgba(14,165,255,0.13)",
+    borderColor: "rgba(14,165,255,0.35)",
+  },
+  filterButtonText: {
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: typography.caption,
+  },
+  filterButtonTextActive: {
+    color: colors.primary,
+  },
   stateCard: {
     minHeight: 220,
     alignItems: "center",
@@ -192,69 +481,177 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontFamily: fonts.medium,
     fontSize: typography.body,
+    textAlign: "center",
   },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.md,
-  },
-  serverCard: {
-    width: 320,
-    maxWidth: "100%",
-    gap: spacing.sm,
+  table: {
+    minWidth: 0,
     borderRadius: radii.medium,
-    padding: spacing.md,
+    overflow: "hidden",
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  serverHeader: {
+  tableRow: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  tableHeader: {
+    minHeight: 46,
+    borderTopWidth: 0,
+    backgroundColor: colors.surface,
+  },
+  headerCell: {
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: typography.caption,
+    textTransform: "uppercase",
+  },
+  nameCell: {
+    flex: 1.5,
+    minWidth: 160,
+  },
+  statusCell: {
+    flex: 1,
+    minWidth: 130,
+  },
+  actionsCell: {
+    width: 234,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  serverName: {
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: typography.bodyLarge,
+  },
+  serverMeta: {
+    marginTop: spacing.xs,
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.caption,
+  },
+  statusPill: {
+    minHeight: 34,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radii.round,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   statusDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
   },
-  serverName: {
-    flex: 1,
+  statusText: {
     color: colors.text,
-    fontFamily: fonts.bold,
-    fontSize: typography.bodyLarge,
-  },
-  serverStatus: {
-    color: colors.muted,
     fontFamily: fonts.medium,
     fontSize: typography.caption,
   },
-  serverMeta: {
+  actionIconButton: {
+    width: 38,
+    height: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    backgroundColor: colors.primaryDark,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  dangerIconButton: {
+    backgroundColor: "rgba(239,68,68,0.1)",
+    borderColor: "rgba(239,68,68,0.35)",
+  },
+  modalOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.md,
+    backgroundColor: colors.overlay,
+  },
+  modal: {
+    width: "100%",
+    maxWidth: 460,
+    gap: spacing.md,
+    borderRadius: radii.medium,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  modalTitle: {
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: typography.h3,
+  },
+  confirmText: {
     color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: typography.body,
+    lineHeight: 22,
   },
-  metricsRow: {
+  modalActions: {
     flexDirection: "row",
+    justifyContent: "flex-end",
     gap: spacing.sm,
-    paddingTop: spacing.sm,
+    flexWrap: "wrap",
   },
-  metric: {
-    flex: 1,
-    minHeight: 58,
+  secondaryButton: {
+    minHeight: 40,
     justifyContent: "center",
-    borderRadius: radii.small,
-    paddingHorizontal: spacing.sm,
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  metricValue: {
+  secondaryButtonText: {
     color: colors.text,
-    fontFamily: fonts.bold,
-    fontSize: typography.bodyLarge,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
   },
-  metricLabel: {
-    color: colors.muted,
-    fontFamily: fonts.regular,
-    fontSize: typography.caption,
+  primaryButton: {
+    minHeight: 40,
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.primaryDark,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  primaryButtonText: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+  },
+  dangerButton: {
+    minHeight: 40,
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.danger,
+  },
+  dangerButtonText: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
   },
 });

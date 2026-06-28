@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from bson import ObjectId
+from pymongo.errors import PyMongoError
 
 from app.database.mongodb import (
     create_server_indexes,
@@ -14,6 +15,12 @@ from app.models.account.server_model import ServerMetric
 class ServerMetricRepository:
     LEGACY_COLLECTION_NAME = "server_metrics"
     LEGACY_MONTHLY_COLLECTION_PREFIX = "server_metrics_"
+    DEDUP_METRIC_FIELDS = (
+        "cpu_percent",
+        "memory_percent",
+        "disk_percent",
+        "load_average_1m"
+    )
 
     @staticmethod
     def _monthly_collection_name(date: datetime) -> str:
@@ -62,7 +69,69 @@ class ServerMetricRepository:
         })
 
     @staticmethod
+    def _sample_collected_at(sample: dict[str, Any]) -> datetime:
+        value = sample.get("collected_at")
+        return value if isinstance(value, datetime) else datetime.min
+
+    @staticmethod
+    def _simple_metrics_are_equal(
+        previous: dict[str, Any] | None,
+        current: dict[str, Any]
+    ) -> bool:
+        if previous is None:
+            return False
+
+        previous_metrics = previous.get("metrics") or {}
+        return all(
+            previous_metrics.get(field) == current.get(field)
+            for field in ServerMetricRepository.DEDUP_METRIC_FIELDS
+        )
+
+    @staticmethod
+    async def _latest_sample_from_server_database(
+        metric: ServerMetric
+    ) -> dict[str, Any] | None:
+        server_id = str(metric.server_id)
+        db = get_server_database(server_id)
+        collection_names = [
+            name
+            for name in await db.list_collection_names()
+            if ServerMetricRepository._server_collection_sort_key(name) != datetime.min
+        ]
+        collection_names.sort(
+            key=ServerMetricRepository._server_collection_sort_key,
+            reverse=True
+        )
+
+        for collection_name in collection_names:
+            documents = await db[collection_name].find(
+                {"server_id": metric.server_id}
+            ).sort("day", -1).limit(1).to_list(length=1)
+
+            for document in documents:
+                samples = list(document.get("samples", []))
+                if samples:
+                    samples.sort(
+                        key=ServerMetricRepository._sample_collected_at,
+                        reverse=True
+                    )
+                    return samples[0]
+
+        return None
+
+    @staticmethod
     async def create(account_id: str, metric: ServerMetric) -> str:
+        try:
+            await ServerMetricRepository._create_in_server_database(metric)
+        except PyMongoError:
+            await ServerMetricRepository._create_in_legacy_account_database(
+                account_id,
+                metric
+            )
+        return str(metric.id)
+
+    @staticmethod
+    async def _create_in_server_database(metric: ServerMetric) -> None:
         server_id = str(metric.server_id)
         collection_name = ServerMetricRepository._monthly_collection_name(
             metric.collected_at
@@ -70,6 +139,15 @@ class ServerMetricRepository:
         day_id = ServerMetricRepository._day_document_id(metric.collected_at)
         db = get_server_database(server_id)
         collection = db[collection_name]
+        latest_sample = await ServerMetricRepository._latest_sample_from_server_database(
+            metric
+        )
+
+        if ServerMetricRepository._simple_metrics_are_equal(
+            latest_sample,
+            metric.metrics
+        ):
+            return
 
         await create_server_indexes(server_id, collection_name)
         await collection.update_one(
@@ -93,7 +171,18 @@ class ServerMetricRepository:
             },
             upsert=True
         )
-        return str(metric.id)
+
+    @staticmethod
+    async def _create_in_legacy_account_database(
+        account_id: str,
+        metric: ServerMetric
+    ) -> None:
+        db = get_account_database(account_id)
+        collection_name = (
+            f"{ServerMetricRepository.LEGACY_MONTHLY_COLLECTION_PREFIX}"
+            f"{ServerMetricRepository._monthly_collection_name(metric.collected_at)}"
+        )
+        await db[collection_name].insert_one(metric.model_dump(by_alias=True))
 
     @staticmethod
     async def get_recent(

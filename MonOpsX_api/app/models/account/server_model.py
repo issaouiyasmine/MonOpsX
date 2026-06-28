@@ -15,6 +15,8 @@ class Server(BaseModel):
     name: str
     hostname: str
     ip: str
+    operating_system: Optional[str] = None
+    token: str = ""
     status: str = "pending"
     latest_metrics: dict[str, Any] = Field(default_factory=dict)
     last_seen_at: Optional[datetime] = None
@@ -36,6 +38,7 @@ class ServerMetric(BaseModel):
     collected_at: datetime
     hostname: str
     ip: str
+    operating_system: Optional[str] = None
     metrics: dict[str, Any]
     docker: dict[str, Any] | None = None
     events: list[dict[str, Any]] = Field(default_factory=list)

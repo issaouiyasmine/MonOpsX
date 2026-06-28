@@ -20,6 +20,18 @@ const API_MESSAGES: Record<string, string> = {
   "The default Admin role cannot be changed": "Le rôle Admin par défaut ne peut pas être modifié.",
   "The default Admin role cannot be deleted": "Le rôle Admin par défaut ne peut pas être supprimé.",
   "You do not have permission to perform this action": "Vous n'avez pas la permission d'effectuer cette action.",
+  "Server IP already exists": "Cette adresse IP est déjà utilisée.",
+  "Adresse IP déjà utilisée": "Cette adresse IP est déjà utilisée.",
+  "Server not found": "Le serveur est introuvable.",
+  "Serveur introuvable": "Le serveur est introuvable.",
+  "Invalid webhook token": "Le token webhook est invalide.",
+  "Token webhook invalide": "Le token webhook est invalide.",
+  "Missing webhook token": "Le token webhook est manquant.",
+  "Token webhook manquant": "Le token webhook est manquant.",
+  "Webhook payload is too large": "Le payload webhook est trop volumineux.",
+  "Payload webhook trop volumineux": "Le payload webhook est trop volumineux.",
+  "Value is required": "Valeur obligatoire.",
+  "Valeur obligatoire": "Valeur obligatoire.",
 };
 
 function translate(message: string): string {

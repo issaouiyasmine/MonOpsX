@@ -18,14 +18,32 @@ settings = get_settings()
 
 class WebhookService:
     @staticmethod
+    def _normalize_token_data(token_data: dict) -> dict:
+        account_id = str(token_data.get("account_id", "")).strip()
+        server_id = str(token_data.get("server_id", "")).strip()
+
+        if not ObjectId.is_valid(account_id) or not ObjectId.is_valid(server_id):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token webhook invalide"
+            )
+
+        return {
+            **token_data,
+            "account_id": account_id,
+            "server_id": server_id
+        }
+
+    @staticmethod
     async def resolve_token(token: str) -> dict:
         token_data = await ServerTokenRepository.find_active_by_token(token)
         if token_data is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid webhook token"
+                detail="Token webhook invalide"
             )
 
+        token_data = WebhookService._normalize_token_data(token_data)
         server = await ServerRepository.find_by_id(
             token_data["account_id"],
             token_data["server_id"]
@@ -33,7 +51,7 @@ class WebhookService:
         if server is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid webhook token"
+                detail="Token webhook invalide"
             )
 
         return token_data
@@ -44,17 +62,19 @@ class WebhookService:
         server_id = token_data["server_id"]
         server = await ServerRepository.find_by_id(account_id, server_id)
         if server is None:
-            raise HTTPException(status_code=404, detail="Server not found")
+            raise HTTPException(status_code=404, detail="Serveur introuvable")
 
         metrics = request.metrics.model_dump()
         docker = request.docker.model_dump() if request.docker else None
         events = [event.model_dump() for event in request.events]
         status_value = WebhookService._derive_status(metrics, events)
+        operating_system = request.operating_system or server.operating_system
         latest_metrics = {
             **metrics,
             "docker": docker,
             "events": events,
             "agent_version": request.agent_version,
+            "operating_system": operating_system,
             "collected_at": request.collected_at
         }
 
@@ -65,6 +85,7 @@ class WebhookService:
             collected_at=request.collected_at,
             hostname=request.hostname,
             ip=request.ip,
+            operating_system=operating_system,
             metrics=metrics,
             docker=docker,
             events=events,
@@ -79,6 +100,7 @@ class WebhookService:
             server_id=server_id,
             hostname=request.hostname,
             ip=request.ip,
+            operating_system=operating_system,
             status=status_value,
             latest_metrics=latest_metrics,
             last_seen_at=datetime.utcnow()
@@ -112,12 +134,12 @@ class WebhookService:
     ) -> list[Alert]:
         alerts: list[Alert] = []
         threshold_map = {
-            "cpu_percent": settings.METRICS_CPU_ALERT_PERCENT,
-            "memory_percent": settings.METRICS_MEMORY_ALERT_PERCENT,
-            "disk_percent": settings.METRICS_DISK_ALERT_PERCENT
+            "cpu_percent": ("CPU", settings.METRICS_CPU_ALERT_PERCENT),
+            "memory_percent": ("RAM", settings.METRICS_MEMORY_ALERT_PERCENT),
+            "disk_percent": ("disque", settings.METRICS_DISK_ALERT_PERCENT)
         }
 
-        for metric_name, threshold in threshold_map.items():
+        for metric_name, (metric_label, threshold) in threshold_map.items():
             metric_value = float(metrics[metric_name])
             if metric_value >= threshold:
                 alerts.append(Alert(
@@ -125,7 +147,7 @@ class WebhookService:
                     server_id=server_id,
                     type="threshold",
                     severity="warning",
-                    message=f"{metric_name} reached {metric_value:.1f}% threshold {threshold:.1f}%",
+                    message=f"{metric_label} a atteint {metric_value:.1f}% (seuil {threshold:.1f}%)",
                     metric_name=metric_name,
                     metric_value=metric_value
                 ))

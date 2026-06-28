@@ -22,7 +22,7 @@ async def receive_server_metrics(
     if len(body) > 256_000:
         from fastapi import HTTPException
 
-        raise HTTPException(status_code=413, detail="Webhook payload is too large")
+        raise HTTPException(status_code=413, detail="Payload webhook trop volumineux")
 
     token_data = await WebhookService.resolve_token(token)
     return await WebhookService.ingest(token_data, payload)

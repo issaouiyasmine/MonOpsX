@@ -12,6 +12,7 @@ class WebhookMetrics(BaseModel):
     cpu_percent: float = Field(ge=0, le=100)
     memory_percent: float = Field(ge=0, le=100)
     disk_percent: float = Field(ge=0, le=100)
+    load_average_1m: float | None = Field(default=None, ge=0)
     uptime_seconds: int = Field(ge=0)
 
 
@@ -20,6 +21,9 @@ class WebhookDockerContainer(BaseModel):
     image: str = Field(min_length=1, max_length=512)
     status: str = Field(min_length=1, max_length=120)
     restart_count: int = Field(ge=0)
+    last_build_at: datetime | None = None
+    started_at: datetime | None = None
+    uptime_seconds: int | None = Field(default=None, ge=0)
 
 
 class WebhookDocker(BaseModel):
@@ -43,6 +47,7 @@ class ServerMetricsWebhookRequest(BaseModel):
     collected_at: datetime
     hostname: str = Field(min_length=1, max_length=255)
     ip: str = Field(min_length=1, max_length=64)
+    operating_system: str | None = Field(default=None, max_length=255)
     metrics: WebhookMetrics
     docker: WebhookDocker | None = None
     events: list[WebhookEvent] = Field(default_factory=list, max_length=100)
@@ -52,8 +57,16 @@ class ServerMetricsWebhookRequest(BaseModel):
     def trim_required_text(cls, value: str) -> str:
         value = value.strip()
         if not value:
-            raise ValueError("Value is required")
+            raise ValueError("Valeur obligatoire")
         return value
+
+    @field_validator("operating_system")
+    @classmethod
+    def trim_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
 
 
 class ServerMetricsWebhookResponse(BaseModel):

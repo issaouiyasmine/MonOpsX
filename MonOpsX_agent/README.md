@@ -16,6 +16,27 @@ MONOPSX_WEBHOOK_TOKEN=token_du_serveur
 MONOPSX_INTERVAL_SECONDS=30
 ```
 
+Le token peut aussi être fourni sans modifier `.env` :
+
+```bash
+python agent.py --token token_du_serveur
+```
+
+En local, cette commande suffit si l'API tourne sur `http://localhost:8000`.
+Au premier lancement, l'agent installe automatiquement les dépendances manquantes depuis `requirements.txt`.
+
+Vous pouvez aussi préciser l'URL de l'API et l'intervalle :
+
+```bash
+python agent.py --api-url https://api.votre-domaine.com --token token_du_serveur --interval 30
+```
+
+Si l'installation automatique échoue, installez les dépendances manuellement :
+
+```bash
+python -m pip install -r requirements.txt
+```
+
 Au démarrage, l'agent affiche l'intervalle réellement utilisé, par exemple :
 
 ```text
@@ -51,28 +72,26 @@ $server.webhook_token
 
 Vous pouvez aussi créer le serveur depuis l'application dans `Serveurs > Ajouter un serveur`.
 
-4. Préparer l'environnement de l'agent :
+4. Lancer l'agent :
 
 ```powershell
 cd MonOpsX_agent
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
+python agent.py --token le_token_du_serveur
 ```
 
-5. Modifier `MonOpsX_agent/.env` :
+L'agent utilise `http://localhost:8000` par défaut et installe automatiquement les dépendances manquantes.
 
-```env
-MONOPSX_API_URL=http://localhost:8000
-MONOPSX_WEBHOOK_TOKEN=le_token_du_serveur
-MONOPSX_INTERVAL_SECONDS=30
-```
-
-6. Lancer l'agent :
+5. En cas d'échec de l'installation automatique, installez les dépendances puis relancez :
 
 ```powershell
-python agent.py
+python -m pip install -r requirements.txt
+python agent.py --token le_token_du_serveur
+```
+
+6. Si l'API n'utilise pas l'URL locale par défaut, précisez son URL :
+
+```powershell
+python agent.py --api-url http://localhost:8000 --token le_token_du_serveur
 ```
 
 La console doit afficher que les métriques sont envoyées. Ouvrez ensuite la page `Serveurs` dans l'application pour vérifier l'activité du serveur.
@@ -144,14 +163,19 @@ MONOPSX_INTERVAL_SECONDS=30
 4. Valider manuellement :
 
 ```powershell
-python agent.py
+python agent.py --token token_du_serveur
 ```
 
 5. Pour le démarrage automatique, utilisez le Planificateur de tâches Windows ou NSSM avec la commande :
 
 ```powershell
-python agent.py
+python agent.py --token token_du_serveur
 ```
+
+## Plusieurs Instances
+
+Une machine ou instance surveillée doit correspondre à un serveur MonOpsX et à un token dédié.
+Si vous avez plusieurs instances, créez un serveur séparé dans l'application pour chacune, puis lancez chaque agent avec son propre token.
 
 ## Grafana
 
