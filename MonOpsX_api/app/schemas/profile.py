@@ -40,3 +40,26 @@ class UpdateProfileAccountRequest(BaseModel):
     @classmethod
     def trim_value(cls, value: str) -> str:
         return value.strip()
+
+
+class UpdateProfilePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("current_password", "new_password")
+    @classmethod
+    def validate_password_size(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Le mot de passe ne doit pas dépasser 72 octets")
+        return value
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_size(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Le mot de passe ne doit pas depasser 72 octets")
+        return value

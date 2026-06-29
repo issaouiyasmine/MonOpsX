@@ -1,0 +1,129 @@
+{
+  "uid": "monopsx-server",
+  "title": "MonOpsX Server",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "15s",
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "server_id",
+        "label": "Serveur",
+        "type": "query",
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "monopsx-api" },
+        "query": "/internal/grafana/servers",
+        "url_options": { "method": "GET" },
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "event_type",
+        "label": "Type evenement",
+        "type": "custom",
+        "query": "all,deployment,crash,threshold,status,info",
+        "current": { "text": "all", "value": "all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Resume serveur",
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "monopsx-api" },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": {
+        "reduceOptions": { "values": true, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "horizontal",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url_options": { "method": "GET" },
+          "root_selector": "summary_rows",
+          "columns": [
+            { "selector": "metric", "text": "Metric", "type": "string" },
+            { "selector": "value", "text": "Value", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Historique CPU / RAM / Disque",
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "monopsx-api" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url_options": { "method": "GET" },
+          "root_selector": "points",
+          "columns": [
+            { "selector": "collected_at", "text": "time", "type": "timestamp" },
+            { "selector": "cpu_percent", "text": "CPU", "type": "number" },
+            { "selector": "memory_percent", "text": "RAM", "type": "number" },
+            { "selector": "disk_percent", "text": "Disque", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Charge systeme / uptime",
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "monopsx-api" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url_options": { "method": "GET" },
+          "root_selector": "points",
+          "columns": [
+            { "selector": "collected_at", "text": "time", "type": "timestamp" },
+            { "selector": "load_average_1m", "text": "Charge 1m", "type": "number" },
+            { "selector": "uptime_seconds", "text": "Uptime seconds", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Evenements filtres",
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "monopsx-api" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url_options": { "method": "GET" },
+          "root_selector": "events",
+          "columns": [
+            { "selector": "collected_at", "text": "Date", "type": "timestamp" },
+            { "selector": "type", "text": "Type", "type": "string" },
+            { "selector": "severity", "text": "Severite", "type": "string" },
+            { "selector": "message", "text": "Message", "type": "string" }
+          ]
+        }
+      ]
+    }
+  ]
+}

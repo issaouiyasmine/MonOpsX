@@ -65,7 +65,7 @@ export function ToastProvider({ children }: PropsWithChildren) {
           accessibilityLiveRegion="polite"
           style={[
             styles.toast,
-            { top: insets.top + 12, borderLeftColor: toastColor, opacity },
+            { top: insets.top + 12, backgroundColor: toastColor, borderColor: toastColor, opacity },
           ]}
         >
           <Text style={styles.toastText}>{toast.message}</Text>
@@ -84,24 +84,24 @@ export function useToast() {
 const styles = StyleSheet.create({
   toast: {
     position: "absolute",
-    zIndex: 100,
+    zIndex: 999998,
+    elevation: 999998,
     left: 20,
     right: 20,
     alignSelf: "center",
     maxWidth: 560,
-    borderLeftWidth: 4,
+    borderWidth: 1,
     borderRadius: 10,
-    backgroundColor: colors.card,
     paddingHorizontal: 16,
     paddingVertical: 14,
     shadowColor: "#000",
     shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 12
   },
   toastText: {
-    color: colors.text,
+    color: colors.white,
     fontFamily: fonts.medium,
     fontSize: typography.body,
+    textAlign: "center",
   },
 });

@@ -1,0 +1,10 @@
+apiVersion: 1
+
+datasources:
+  - name: MonOpsX API
+    uid: monopsx-api
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    url: http://api:8000
+    isDefault: true
+    editable: true

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -6,11 +7,14 @@ from fastapi import HTTPException, status
 
 from app.core.config import get_settings
 from app.models.account.server_model import Alert, ServerMetric
+from app.repositories.accounts.account_metadata_repository import MetadataRepository
 from app.repositories.accounts.alert_repository import AlertRepository
 from app.repositories.accounts.server_metric_repository import ServerMetricRepository
 from app.repositories.accounts.server_repository import ServerRepository
 from app.repositories.global_repo.server_token_repository import ServerTokenRepository
 from app.schemas.webhook import ServerMetricsWebhookRequest
+from app.services.notification_service import NotificationService
+from app.services.prediction_service import PredictionService
 
 
 settings = get_settings()
@@ -92,9 +96,31 @@ class WebhookService:
             status=status_value
         )
 
-        alerts = WebhookService._build_alerts(ObjectId(server_id), metrics, events)
+        recent_metrics = await ServerMetricRepository.get_recent(account_id, server_id, settings.PREDICTION_METRICS_LIMIT)
+        notification_settings = await MetadataRepository.get_notification_settings(account_id)
+        alerts = WebhookService._build_alerts(ObjectId(server_id), metrics, events, notification_settings)
         await ServerMetricRepository.create(account_id, metric)
-        await AlertRepository.create_many(account_id, alerts)
+        alerts.extend(await PredictionService.build_prediction_alerts(
+            account_id,
+            ObjectId(server_id),
+            metric,
+            recent_metrics,
+            notification_settings
+        ))
+        notifications_enabled = notification_settings.get("enabled", True)
+        in_app_alerts = [
+            alert for alert in alerts
+            if WebhookService._alert_channel_enabled(alert, notification_settings, "in_app_enabled")
+        ]
+        push_alerts = [
+            alert for alert in alerts
+            if WebhookService._alert_channel_enabled(alert, notification_settings, "push_enabled")
+        ]
+        stored_alert_count = 0
+        if notifications_enabled and in_app_alerts:
+            stored_alert_count = await AlertRepository.create_many(account_id, in_app_alerts)
+        if notifications_enabled and push_alerts:
+            asyncio.create_task(NotificationService.deliver_alerts(account_id, push_alerts))
         await ServerRepository.update_latest(
             account_id=account_id,
             server_id=server_id,
@@ -109,7 +135,7 @@ class WebhookService:
         return {
             "status": status_value,
             "server_id": server_id,
-            "alerts_created": len(alerts)
+            "alerts_created": stored_alert_count
         }
 
     @staticmethod
@@ -130,17 +156,20 @@ class WebhookService:
     def _build_alerts(
         server_id: ObjectId,
         metrics: dict[str, Any],
-        events: list[dict[str, Any]]
+        events: list[dict[str, Any]],
+        notification_settings: dict[str, Any]
     ) -> list[Alert]:
         alerts: list[Alert] = []
+        metric_settings = notification_settings.get("metrics") or {}
         threshold_map = {
-            "cpu_percent": ("CPU", settings.METRICS_CPU_ALERT_PERCENT),
-            "memory_percent": ("RAM", settings.METRICS_MEMORY_ALERT_PERCENT),
-            "disk_percent": ("disque", settings.METRICS_DISK_ALERT_PERCENT)
+            "cpu_percent": ("CPU", WebhookService._metric_threshold(metric_settings, "cpu_percent", settings.METRICS_CPU_ALERT_PERCENT)),
+            "memory_percent": ("RAM", WebhookService._metric_threshold(metric_settings, "memory_percent", settings.METRICS_MEMORY_ALERT_PERCENT)),
+            "disk_percent": ("disque", WebhookService._metric_threshold(metric_settings, "disk_percent", settings.METRICS_DISK_ALERT_PERCENT)),
+            "load_average_1m": ("charge systeme", 4.0)
         }
 
         for metric_name, (metric_label, threshold) in threshold_map.items():
-            metric_value = float(metrics[metric_name])
+            metric_value = float(metrics.get(metric_name) or 0)
             if metric_value >= threshold:
                 alerts.append(Alert(
                     _id=ObjectId(),
@@ -163,3 +192,18 @@ class WebhookService:
                 ))
 
         return alerts
+
+    @staticmethod
+    def _metric_threshold(metric_settings: dict[str, Any], metric_name: str, default_threshold: float) -> float:
+        return float((metric_settings.get(metric_name) or {}).get("threshold", default_threshold))
+
+    @staticmethod
+    def _alert_channel_enabled(alert: Alert, notification_settings: dict[str, Any], channel: str) -> bool:
+        if not notification_settings.get("enabled", True):
+            return False
+
+        metric_settings = notification_settings.get("metrics") or {}
+        if alert.metric_name in metric_settings:
+            return bool(metric_settings[alert.metric_name].get(channel, False))
+
+        return any(bool(settings_for_metric.get(channel, False)) for settings_for_metric in metric_settings.values())

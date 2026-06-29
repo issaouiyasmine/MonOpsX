@@ -73,6 +73,14 @@ export default function Login() {
       />
       <PrimaryButton label="Se connecter" loading={isSubmitting} onPress={handleSubmit} />
 
+      <View style={styles.forgot}>
+        <Link href="/(auth)/forgot-password" asChild>
+          <Pressable hitSlop={8}>
+            <Text style={styles.link}>Mot de passe oublié ?</Text>
+          </Pressable>
+        </Link>
+      </View>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>{"Vous n'avez pas encore de compte ?"}</Text>
         <Link href="/(auth)/add-account" asChild>
@@ -92,6 +100,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 5,
     marginTop: 22,
+  },
+  forgot: {
+    alignItems: "center",
+    marginTop: 14,
   },
   footerText: {
     color: colors.muted,

@@ -11,6 +11,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ToastProvider } from "@/providers/toast-provider";
 import { ProfileProvider } from "@/providers/profile-provider";
+import { TooltipProvider } from "@/providers/tooltip-provider";
+import { NotificationProvider } from "@/providers/notification-provider";
 
 export default function Layout() {
   const [fontsLoaded] = useFonts({
@@ -24,9 +26,13 @@ export default function Layout() {
   return (
     <SafeAreaProvider>
       <ToastProvider>
-        <AuthProvider>
-          <ProfileProvider><StatusBar style="light" /><Stack screenOptions={{ headerShown: false }} /></ProfileProvider>
-        </AuthProvider>
+        <TooltipProvider>
+          <AuthProvider>
+            <ProfileProvider>
+              <NotificationProvider><StatusBar style="light" /><Stack screenOptions={{ headerShown: false }} /></NotificationProvider>
+            </ProfileProvider>
+          </AuthProvider>
+        </TooltipProvider>
       </ToastProvider>
     </SafeAreaProvider>
   );

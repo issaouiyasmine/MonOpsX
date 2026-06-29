@@ -15,6 +15,10 @@ from app.controllers.profile_controller import router as profile_router
 from app.controllers.server_controller import router as server_router
 from app.controllers.webhook_controller import router as webhook_router
 from app.controllers.chat_controller import router as chat_router
+from app.controllers.internal_controller import router as internal_router
+from app.controllers.dashboard_controller import router as dashboard_router
+from app.controllers.notification_controller import router as notification_router
+from app.controllers.settings_controller import router as settings_router
 
 
 
@@ -78,3 +82,7 @@ app.include_router(profile_router)
 app.include_router(server_router)
 app.include_router(webhook_router)
 app.include_router(chat_router)
+app.include_router(internal_router)
+app.include_router(dashboard_router)
+app.include_router(notification_router)
+app.include_router(settings_router)

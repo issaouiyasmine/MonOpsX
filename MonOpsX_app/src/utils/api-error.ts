@@ -16,6 +16,7 @@ const API_MESSAGES: Record<string, string> = {
   "Role name already exists": "Un rôle porte déjà ce nom.",
   "User not found": "L'utilisateur est introuvable.",
   "The principal user's role and active status cannot be changed": "Le rôle et le statut de l'utilisateur principal ne peuvent pas être modifiés.",
+  "Current password is invalid": "Le mot de passe actuel est incorrect.",
   "The principal user cannot be deleted": "L'utilisateur principal ne peut pas être supprimé.",
   "The default Admin role cannot be changed": "Le rôle Admin par défaut ne peut pas être modifié.",
   "The default Admin role cannot be deleted": "Le rôle Admin par défaut ne peut pas être supprimé.",

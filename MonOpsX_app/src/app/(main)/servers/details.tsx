@@ -8,15 +8,21 @@ import { FormField } from "@/components/form-field";
 // Metro resolves this to .web.tsx or .native.tsx; eslint-import does not understand that Expo convention here.
 // eslint-disable-next-line import/no-unresolved
 import { GrafanaDashboardFrame } from "@/components/grafana-dashboard-frame";
+import { IconTooltipButton } from "@/components/icon-tooltip-button";
+import { DashboardHistoryCharts } from "@/components/metric-charts";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
+import type { DashboardEventType, DashboardMetrics, DashboardPeriod } from "@/models/dashboard.model";
 import type { Server, ServerContainer, ServerEvent } from "@/models/server.model";
 import { useToast } from "@/providers/toast-provider";
+import { DashboardService } from "@/services/dashboard.service";
 import { ServerService } from "@/services/server.service";
 import { getApiErrorMessage } from "@/utils/api-error";
 import { getServerGrafanaConfig, type GrafanaDashboard, type GrafanaServerContext } from "@/utils/grafana";
 
 type ServerDetailsTab = "informations" | "dashboards" | "containers";
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
+const dashboardPeriods: DashboardPeriod[] = ["1h", "6h", "24h", "7d", "30d"];
+const dashboardEventTypes: DashboardEventType[] = ["all", "deployment", "crash", "threshold", "status", "info"];
 
 export default function ServerDetails() {
   const { showToast } = useToast();
@@ -157,13 +163,7 @@ export default function ServerDetails() {
         <View style={styles.stateCard}>
           <Ionicons name="warning-outline" size={30} color={colors.alert} />
           <Text style={styles.stateTitle}>{serverError ?? "Aucun serveur sélectionné."}</Text>
-          <Pressable
-            accessibilityLabel="Retour aux serveurs"
-            style={styles.actionMenuButton}
-            onPress={() => router.push("/(main)/servers" as never)}
-          >
-            <Ionicons name="arrow-back-outline" size={18} color={colors.text} />
-          </Pressable>
+          <IconTooltipButton label="Retour aux serveurs" icon="arrow-back-outline" color={colors.text} onPress={() => router.push("/(main)/servers" as never)} />
         </View>
       )}
 
@@ -308,21 +308,13 @@ function ServerHeader({
         </Text>
       </View>
       <View style={styles.headerActions}>
-        <Pressable
-          accessibilityLabel="Retour aux serveurs"
-          style={styles.actionMenuButton}
-          onPress={() => router.push("/(main)/servers" as never)}
-        >
-          <Ionicons name="arrow-back-outline" size={18} color={colors.text} />
-        </Pressable>
+        <IconTooltipButton label="Retour aux serveurs" icon="arrow-back-outline" color={colors.text} onPress={() => router.push("/(main)/servers" as never)} />
         <View style={styles.statusPill}>
           <View style={[styles.statusDot, statusStyle(server.status)]} />
           <Text style={styles.statusText}>{statusLabel(server.status)}</Text>
         </View>
         <View style={styles.actionsMenuWrap}>
-          <Pressable accessibilityLabel="Actions du serveur" style={styles.actionMenuButton} onPress={onToggleActions}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
-          </Pressable>
+          <IconTooltipButton label="Actions du serveur" icon="ellipsis-horizontal" color={colors.text} onPress={onToggleActions} />
           {actionsOpen && (
             <>
               <Pressable style={styles.actionScrim} onPress={onCloseActions} />
@@ -501,7 +493,38 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
   const [selectedId, setSelectedId] = useState(config.dashboards[0]?.id);
   const [loading, setLoading] = useState(Boolean(config.dashboards[0]));
   const [frameError, setFrameError] = useState(false);
+  const [dashboard, setDashboard] = useState<DashboardMetrics | null>(null);
+  const [period, setPeriod] = useState<DashboardPeriod>("24h");
+  const [eventType, setEventType] = useState<DashboardEventType>("all");
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const selectedDashboard = config.dashboards.find((dashboard) => dashboard.id === selectedId) ?? config.dashboards[0];
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadMetrics() {
+      setMetricsLoading(true);
+      setMetricsError(null);
+      try {
+        const data = await DashboardService.getMetrics({
+          period,
+          serverId: server.serverId,
+          eventType,
+        });
+        if (mounted) setDashboard(data);
+      } catch {
+        if (mounted) setMetricsError("Impossible de charger l'historique des métriques.");
+      } finally {
+        if (mounted) setMetricsLoading(false);
+      }
+    }
+
+    loadMetrics();
+    return () => {
+      mounted = false;
+    };
+  }, [eventType, period, server.serverId]);
 
   function selectDashboard(dashboard: GrafanaDashboard) {
     setSelectedId(dashboard.id);
@@ -531,14 +554,31 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
       </View>
 
       {!config.configured && (
-        <View style={styles.stateCard}>
-          <Ionicons name="analytics-outline" size={34} color={colors.primary} />
-          <Text style={styles.stateTitle}>{"Le tableau de bord Grafana du serveur n'est pas configuré"}</Text>
-          <Text style={styles.stateText}>
-            Ajoutez EXPO_PUBLIC_GRAFANA_SERVER_DASHBOARDS avec des variables comme {"{serverId}"}, {"{hostname}"} ou {"{ip}"}.
+        <View style={styles.alert}>
+          <Ionicons name="information-circle-outline" size={20} color={colors.info} />
+          <Text style={styles.alertText}>
+            {"Grafana n'est pas configuré pour ce serveur. Les graphiques natifs utilisent l'historique collecté par l'agent."}
           </Text>
         </View>
       )}
+
+      <View style={styles.filterPanel}>
+        <ServerDashboardFilter label="Période" options={dashboardPeriods} value={period} onChange={(value) => setPeriod(value as DashboardPeriod)} />
+        <ServerDashboardFilter
+          label="Type événement"
+          options={dashboardEventTypes}
+          labels={{
+            all: "Tous",
+            deployment: "Déploiement",
+            crash: "Incident",
+            threshold: "Seuil",
+            status: "Statut",
+            info: "Info",
+          }}
+          value={eventType}
+          onChange={(value) => setEventType(value as DashboardEventType)}
+        />
+      </View>
 
       {config.configured && config.errors.length > 0 && (
         <View style={styles.alert}>
@@ -591,7 +631,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
               <View style={styles.alert}>
                 <Ionicons name="information-circle-outline" size={20} color={colors.info} />
                 <Text style={styles.alertText}>
-                  {"Grafana ne s'est pas chargé dans l'application. Vérifiez que l'intégration est autorisée et que les variables du serveur existent."}
+                  {"Grafana ne s'est pas chargé dans l'application. Les graphiques natifs utilisent l'historique collecté par l'agent."}
                 </Text>
               </View>
             )}
@@ -608,6 +648,54 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
           </View>
         </>
       )}
+
+      {metricsLoading && (
+        <View style={styles.stateCard}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.stateText}>{"Chargement de l'historique des métriques"}</Text>
+        </View>
+      )}
+
+      {metricsError && (
+        <View style={styles.alert}>
+          <Ionicons name="warning-outline" size={20} color={colors.alert} />
+          <Text style={styles.alertText}>{metricsError}</Text>
+        </View>
+      )}
+
+      {!metricsLoading && !metricsError && dashboard && (
+        <DashboardHistoryCharts data={dashboard} />
+      )}
+    </View>
+  );
+}
+
+function ServerDashboardFilter({
+  label,
+  options,
+  labels = {},
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  labels?: Record<string, string>;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <View style={styles.filterGroup}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <View style={styles.filterOptions}>
+        {options.map((option) => {
+          const active = option === value;
+          return (
+            <Pressable key={option} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => onChange(option)}>
+              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{labels[option] ?? option}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -756,16 +844,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
     flexWrap: "wrap",
+    position: "relative",
+    zIndex: 1000,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     flexWrap: "wrap",
+    justifyContent: "flex-end",
+    zIndex: 1000,
   },
   actionsMenuWrap: {
     position: "relative",
-    zIndex: 20,
+    zIndex: 2000,
   },
   actionMenuButton: {
     width: 40,
@@ -789,7 +881,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 46,
     right: 0,
-    zIndex: 2,
+    zIndex: 2001,
+    elevation: 20,
     minWidth: 220,
     gap: spacing.xs,
     borderRadius: radii.medium,
@@ -849,22 +942,23 @@ const styles = StyleSheet.create({
   mainTabs: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm,
+    gap: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    zIndex: 1,
   },
   mainTab: {
     minHeight: 42,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    borderRadius: radii.medium,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
   mainTabActive: {
-    backgroundColor: "rgba(14,165,255,0.13)",
-    borderColor: "rgba(14,165,255,0.35)",
+    borderBottomColor: colors.primary,
   },
   mainTabText: {
     color: colors.muted,
@@ -1059,6 +1153,48 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.medium,
     fontSize: typography.body,
+  },
+  filterPanel: {
+    gap: spacing.md,
+    borderRadius: radii.medium,
+    padding: spacing.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterGroup: {
+    gap: spacing.sm,
+  },
+  filterLabel: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+  },
+  filterOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  filterChip: {
+    minHeight: 34,
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: "rgba(14,165,255,0.13)",
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: typography.caption,
+  },
+  filterChipTextActive: {
+    color: colors.primary,
   },
   secondaryButton: {
     minHeight: 42,

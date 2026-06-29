@@ -210,6 +210,49 @@ class ServerMetricRepository:
         return server_metrics[:limit]
 
     @staticmethod
+    async def get_latest_available(
+        account_id: str,
+        server_id: str,
+        limit: int,
+        event_type: str | None = None
+    ) -> list[ServerMetric]:
+        metrics = await ServerMetricRepository.get_recent(account_id, server_id, limit)
+        if event_type and event_type != "all":
+            metrics = [
+                metric
+                for metric in metrics
+                if ServerMetricRepository._matches_event_type(metric.events, event_type)
+            ]
+
+        metrics.sort(key=lambda metric: metric.collected_at)
+        return metrics
+
+    @staticmethod
+    async def get_range(
+        account_id: str,
+        server_id: str,
+        start: datetime,
+        end: datetime,
+        event_type: str | None = None
+    ) -> list[ServerMetric]:
+        server_metrics = await ServerMetricRepository._get_range_from_server_database(
+            server_id,
+            start,
+            end,
+            event_type
+        )
+        legacy_metrics = await ServerMetricRepository._get_range_from_legacy_account_database(
+            account_id,
+            server_id,
+            start,
+            end,
+            event_type
+        )
+        server_metrics.extend(legacy_metrics)
+        server_metrics.sort(key=lambda metric: metric.collected_at)
+        return server_metrics
+
+    @staticmethod
     async def _get_recent_from_server_database(
         server_id: str,
         limit: int
@@ -261,6 +304,48 @@ class ServerMetricRepository:
         return metrics[:limit]
 
     @staticmethod
+    async def _get_range_from_server_database(
+        server_id: str,
+        start: datetime,
+        end: datetime,
+        event_type: str | None
+    ) -> list[ServerMetric]:
+        db = get_server_database(server_id)
+        collection_names = [
+            name
+            for name in await db.list_collection_names()
+            if ServerMetricRepository._server_collection_sort_key(name) != datetime.min
+        ]
+        collection_names.sort(key=ServerMetricRepository._server_collection_sort_key)
+
+        metrics: list[ServerMetric] = []
+        server_object_id = ObjectId(server_id)
+        start_day = ServerMetricRepository._day_document_id(start)
+        end_day = ServerMetricRepository._day_document_id(end)
+
+        for collection_name in collection_names:
+            documents = await db[collection_name].find(
+                {
+                    "server_id": server_object_id,
+                    "day": {"$gte": start_day, "$lte": end_day}
+                }
+            ).sort("day", 1).to_list(length=None)
+
+            for document in documents:
+                for sample in document.get("samples", []):
+                    collected_at = ServerMetricRepository._sample_collected_at(sample)
+                    if not ServerMetricRepository._is_in_range(collected_at, start, end):
+                        continue
+                    if not ServerMetricRepository._matches_event_type(sample.get("events", []), event_type):
+                        continue
+                    metrics.append(
+                        ServerMetricRepository._metric_from_sample(sample, server_object_id)
+                    )
+
+        metrics.sort(key=lambda metric: metric.collected_at)
+        return metrics
+
+    @staticmethod
     async def _get_recent_from_legacy_account_database(
         account_id: str,
         server_id: str,
@@ -300,3 +385,56 @@ class ServerMetricRepository:
             reverse=True
         )
         return metrics[:limit]
+
+    @staticmethod
+    async def _get_range_from_legacy_account_database(
+        account_id: str,
+        server_id: str,
+        start: datetime,
+        end: datetime,
+        event_type: str | None
+    ) -> list[ServerMetric]:
+        db = get_account_database(account_id)
+        collection_names = await db.list_collection_names()
+        metric_collection_names = [
+            name
+            for name in collection_names
+            if name == ServerMetricRepository.LEGACY_COLLECTION_NAME
+            or name.startswith(ServerMetricRepository.LEGACY_MONTHLY_COLLECTION_PREFIX)
+        ]
+        metric_collection_names.sort(key=ServerMetricRepository._legacy_collection_sort_key)
+
+        metrics: list[ServerMetric] = []
+        server_object_id = ObjectId(server_id)
+
+        for collection_name in metric_collection_names:
+            data = await db[collection_name].find(
+                {
+                    "server_id": server_object_id,
+                    "collected_at": {"$gte": start, "$lte": end}
+                }
+            ).sort("collected_at", 1).to_list(length=None)
+
+            for item in data:
+                if not ServerMetricRepository._matches_event_type(item.get("events", []), event_type):
+                    continue
+                metrics.append(ServerMetric.model_validate(item))
+
+        metrics.sort(key=lambda metric: metric.collected_at)
+        return metrics
+
+    @staticmethod
+    def _is_in_range(value: datetime, start: datetime, end: datetime) -> bool:
+        if value.tzinfo is not None:
+            value = value.replace(tzinfo=None)
+        if start.tzinfo is not None:
+            start = start.replace(tzinfo=None)
+        if end.tzinfo is not None:
+            end = end.replace(tzinfo=None)
+        return start <= value <= end
+
+    @staticmethod
+    def _matches_event_type(events: list[dict[str, Any]], event_type: str | None) -> bool:
+        if not event_type or event_type == "all":
+            return True
+        return any(event.get("type") == event_type for event in events)

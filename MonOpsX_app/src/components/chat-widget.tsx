@@ -113,10 +113,10 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
               </Text>
             </View>
             <View style={styles.headerActions}>
-              <Pressable style={styles.iconButton} onPress={clear}>
-                <Ionicons name="trash-outline" size={18} color={colors.muted} />
+              <Pressable accessibilityLabel="Effacer l historique" style={styles.iconButton} onPress={clear}>
+                <Ionicons name="trash-outline" size={20} color={colors.muted} />
               </Pressable>
-              <Pressable style={styles.iconButton} onPress={() => setOpen(false)}>
+              <Pressable accessibilityLabel="Fermer l assistant" style={styles.iconButton} onPress={() => setOpen(false)}>
                 <Ionicons name="close" size={20} color={colors.muted} />
               </Pressable>
             </View>
@@ -131,14 +131,14 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
             {loadingHistory && (
               <View style={styles.emptyState}>
                 <ActivityIndicator color={colors.primary} />
-                <Text style={styles.emptyText}>Chargement de l'historique</Text>
+                <Text style={styles.emptyText}>{"Chargement de l'historique"}</Text>
               </View>
             )}
 
             {!loadingHistory && messages.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="sparkles-outline" size={26} color={colors.primary} />
-                <Text style={styles.emptyText}>Demandez un récapitulatif, une analyse d'incident ou une prévision d'état.</Text>
+                <Text style={styles.emptyText}>{"Demandez un récapitulatif, une analyse d'incident ou une prévision d'état."}</Text>
               </View>
             )}
 
@@ -174,16 +174,16 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
               multiline
               editable={!sending}
             />
-            <Pressable style={[styles.sendButton, sending && styles.sendButtonDisabled]} onPress={send}>
-              <Ionicons name="send" size={18} color={colors.text} />
+            <Pressable accessibilityLabel="Envoyer" disabled={sending} style={[styles.iconButton, sending && styles.disabled]} onPress={send}>
+              <Ionicons name="send" size={20} color={colors.text} />
             </Pressable>
           </View>
         </View>
       )}
 
       {!open && (
-        <Pressable style={styles.fab} onPress={() => setOpen(true)}>
-          <Ionicons name="chatbubbles-outline" size={24} color={colors.text} />
+        <Pressable accessibilityLabel="Ouvrir l assistant" style={styles.floatingButton} onPress={() => setOpen(true)}>
+          <Ionicons name="chatbubbles-outline" size={22} color={colors.text} />
         </Pressable>
       )}
     </View>
@@ -196,16 +196,6 @@ const styles = StyleSheet.create({
     right: spacing.lg,
     bottom: spacing.lg,
     zIndex: 20,
-  },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primaryDark,
-    borderWidth: 1,
-    borderColor: colors.primary,
   },
   panel: {
     width: 380,
@@ -251,13 +241,27 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   iconButton: {
-    width: 34,
-    height: 34,
+    width: 38,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radii.small,
+    borderRadius: radii.medium,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  floatingButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  disabled: {
+    opacity: 0.5,
   },
   messages: {
     flex: 1,
@@ -333,18 +337,5 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     fontFamily: fonts.regular,
     fontSize: typography.body,
-  },
-  sendButton: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radii.medium,
-    backgroundColor: colors.primaryDark,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  sendButtonDisabled: {
-    opacity: 0.6,
   },
 });

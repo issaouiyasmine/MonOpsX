@@ -150,6 +150,18 @@ class UserRepository:
         )
 
     @staticmethod
+    async def update_password(
+        account_id: str,
+        user_id: str,
+        hashed_password: str
+    ) -> None:
+        await UserRepository.update_fields(
+            account_id,
+            user_id,
+            {"hashed_password": hashed_password}
+        )
+
+    @staticmethod
     async def activate(account_id: str, user_id: str) -> None:
         await UserRepository.update_fields(
             account_id,

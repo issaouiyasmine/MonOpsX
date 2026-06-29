@@ -4,3 +4,5 @@ export interface Profile {
 }
 export interface UpdateProfileUser { first_name: string; last_name: string; email: string }
 export interface UpdateProfileAccount { name: string; email: string }
+export interface UpdateProfilePassword { current_password: string; new_password: string }
+export interface DeleteAccountPayload { password: string }

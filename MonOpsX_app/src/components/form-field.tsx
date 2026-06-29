@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
   Pressable,
@@ -18,26 +19,38 @@ interface FormFieldProps extends TextInputProps {
 
 export function FormField({ label, error, password, ...inputProps }: FormFieldProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   return (
     <View style={styles.group}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputRow, error ? styles.inputError : null]}>
+      <View style={[styles.inputRow, focused && styles.inputFocused, error ? styles.inputError : null]}>
         <TextInput
           {...inputProps}
           autoCapitalize={inputProps.autoCapitalize ?? "none"}
+          numberOfLines={1}
+          onBlur={(event) => {
+            setFocused(false);
+            inputProps.onBlur?.(event);
+          }}
+          onFocus={(event) => {
+            setFocused(true);
+            inputProps.onFocus?.(event);
+          }}
           placeholderTextColor={colors.muted}
           secureTextEntry={password && !isPasswordVisible}
           selectionColor={colors.primary}
-          style={styles.input}
+          underlineColorAndroid="transparent"
+          style={[styles.input, inputProps.style]}
         />
         {password ? (
           <Pressable
             accessibilityLabel={isPasswordVisible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
             hitSlop={8}
+            style={styles.toggleButton}
             onPress={() => setIsPasswordVisible((visible) => !visible)}
           >
-            <Text style={styles.toggle}>{isPasswordVisible ? "Masquer" : "Afficher"}</Text>
+            <Ionicons name={isPasswordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={colors.primary} />
           </Pressable>
         ) : null}
       </View>
@@ -65,17 +78,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   inputError: { borderColor: colors.danger },
+  inputFocused: {
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   input: {
     flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    outlineStyle: "none",
     color: colors.text,
     fontFamily: fonts.regular,
     fontSize: typography.body,
     paddingVertical: 12,
   },
-  toggle: {
-    color: colors.primary,
-    fontFamily: fonts.semiBold,
-    fontSize: 12,
+  toggleButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 10,
   },
   error: {

@@ -10,6 +10,7 @@ from app.repositories.accounts.role_repository import RoleRepository
 from app.repositories.accounts.user_repository import UserRepository
 from app.repositories.global_repo.session_repository import SessionRepository
 from app.repositories.global_repo.users_repository import UsersRepository
+from app.utils.permissions import PermissionHelper
 
 
 settings = get_settings()
@@ -72,11 +73,15 @@ async def get_current_user(
     if role is None:
         raise unauthorized
 
+    permissions = role.permissions
+    if local_user.is_principal or role.is_default or role.normalized_name == "ADMIN":
+        permissions = sorted(set(permissions + PermissionHelper.getall_permissions()))
+
     return CurrentUser(
         user_id=user_id,
         account_id=account_id,
         role_id=str(role.id),
-        permissions=role.permissions,
+        permissions=permissions,
         is_principal=local_user.is_principal
     )
 

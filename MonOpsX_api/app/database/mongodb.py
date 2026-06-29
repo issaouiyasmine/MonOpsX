@@ -318,6 +318,23 @@ async def create_account_indexes(
         ]
     )
 
+    await db.alerts.create_index(
+        [
+            ("acknowledged_at", 1),
+            ("created_at", -1)
+        ]
+    )
+
+    # Push tokens
+
+    await db.push_tokens.create_index(
+        [
+            ("user_id", 1),
+            ("token", 1)
+        ],
+        unique=True
+    )
+
     # Chat history
 
     await db.chat_messages.create_index(

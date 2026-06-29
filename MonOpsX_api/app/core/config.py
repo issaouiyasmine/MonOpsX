@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     OLLAMA_TIMEOUT_SECONDS: int = 120
     CHAT_METRICS_LIMIT: int = 100
     CHAT_HISTORY_LIMIT: int = 30
+    PREDICTION_ENABLED: bool = True
+    PREDICTION_MODE: str = "mock"
+    PREDICTION_HORIZON_DAYS: int = 3
+    PREDICTION_COOLDOWN_HOURS: int = 24
+    PREDICTION_METRICS_LIMIT: int = 24
 
     @property
     def mongo_connection_uri(self) -> str:

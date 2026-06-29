@@ -14,6 +14,7 @@ import {
 
 import { AppShell } from "@/components/app-shell";
 import { FormField } from "@/components/form-field";
+import { IconTooltipButton } from "@/components/icon-tooltip-button";
 import { PrimaryButton } from "@/components/primary-button";
 import { permissionRows, Permissions, type PermissionAction, type PermissionRow } from "@/constants/permissions";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
@@ -330,13 +331,13 @@ export default function Administration() {
                 <Text style={styles.badgeText}>{user.is_active ? "Actif" : "Inactif"}</Text>
               </View>
               {session?.permissions.includes(Permissions.USERS_UPDATE) && !user.is_principal ? (
-                <Pressable style={styles.action} onPress={() => openUser(user)}>
-                  <Ionicons name="create-outline" size={20} color={colors.primary} />
-                </Pressable>
+                <IconTooltipButton label="Modifier l utilisateur" icon="create-outline" onPress={() => openUser(user)} />
               ) : null}
               {session?.permissions.includes(Permissions.USERS_UPDATE) && !user.is_principal ? (
-                <Pressable
-                  style={styles.action}
+                <IconTooltipButton
+                  label={user.is_active ? "Desactiver l utilisateur" : "Activer l utilisateur"}
+                  icon={user.is_active ? "pause-circle-outline" : "play-circle-outline"}
+                  color={colors.warning}
                   onPress={async () => {
                     try {
                       await AdministrationService.updateUser(user.id, { is_active: !user.is_active });
@@ -346,14 +347,10 @@ export default function Administration() {
                       showToast(getApiErrorMessage(error), "error");
                     }
                   }}
-                >
-                  <Ionicons name={user.is_active ? "pause-circle-outline" : "play-circle-outline"} size={20} color={colors.warning} />
-                </Pressable>
+                />
               ) : null}
               {session?.permissions.includes(Permissions.USERS_DELETE) && !user.is_principal ? (
-                <Pressable style={styles.action} onPress={() => askDeleteUser(user)}>
-                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                </Pressable>
+                <IconTooltipButton label="Supprimer l utilisateur" icon="trash-outline" danger onPress={() => askDeleteUser(user)} />
               ) : null}
             </View>
           ))}
@@ -370,14 +367,10 @@ export default function Administration() {
                 <Text style={styles.sub}>{role.permissions.length} permission(s)</Text>
               </View>
               {session?.permissions.includes(Permissions.ROLES_UPDATE) && !role.is_default ? (
-                <Pressable style={styles.action} onPress={() => openRole(role)}>
-                  <Ionicons name="create-outline" size={20} color={colors.primary} />
-                </Pressable>
+                <IconTooltipButton label="Modifier le role" icon="create-outline" onPress={() => openRole(role)} />
               ) : null}
               {session?.permissions.includes(Permissions.ROLES_DELETE) && !role.is_default ? (
-                <Pressable style={styles.action} onPress={() => askDeleteRole(role)}>
-                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                </Pressable>
+                <IconTooltipButton label="Supprimer le role" icon="trash-outline" danger onPress={() => askDeleteRole(role)} />
               ) : null}
             </View>
           ))}
@@ -557,13 +550,13 @@ const styles = StyleSheet.create({
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
   tabText: { color: colors.muted, fontFamily: fonts.medium, fontSize: typography.bodyLarge },
   tabTextActive: { color: colors.primary },
-  tools: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent: "space-between" },
-  search: { flex: 1, minWidth: 220, maxWidth: 520, height: 44, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radii.medium, paddingHorizontal: 12, backgroundColor: colors.input },
+  tools: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent: "space-between", alignItems: "center" },
+  search: { flex: 1, minWidth: 0, maxWidth: 520, height: 44, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radii.medium, paddingHorizontal: 12, backgroundColor: colors.input },
   searchInput: { flex: 1, color: colors.text, fontFamily: fonts.regular, fontSize: typography.body },
-  add: { height: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, borderRadius: radii.medium, backgroundColor: colors.primaryDark },
+  add: { height: 44, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, borderRadius: radii.medium, backgroundColor: colors.primaryDark },
   addText: { color: colors.text, fontFamily: fonts.medium, fontSize: typography.body },
   list: { gap: spacing.sm },
-  row: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.medium, backgroundColor: colors.card },
+  row: { minHeight: 72, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.medium, backgroundColor: colors.card },
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryDark },
   avatarText: { color: colors.text, fontFamily: fonts.bold },
   roleIcon: { width: 42, height: 42, borderRadius: radii.medium, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14,165,255,.12)" },
@@ -574,7 +567,6 @@ const styles = StyleSheet.create({
   badgeOn: { backgroundColor: "rgba(34,197,94,.16)" },
   badgeOff: { backgroundColor: "rgba(239,68,68,.16)" },
   badgeText: { color: colors.text, fontFamily: fonts.medium, fontSize: typography.caption },
-  action: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: radii.medium, borderWidth: 1, borderColor: colors.border },
   empty: { minHeight: 400, alignItems: "center", justifyContent: "center" },
   emptyTitle: { color: colors.muted, fontFamily: fonts.medium, fontSize: typography.h3, marginTop: spacing.md },
   modalOverlay: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.overlay, padding: spacing.md },
@@ -618,3 +610,4 @@ const styles = StyleSheet.create({
   secondaryText: { color: colors.text, fontFamily: fonts.medium },
   danger: { paddingHorizontal: 16, paddingVertical: 11, borderRadius: radii.medium, backgroundColor: colors.danger },
 });
+

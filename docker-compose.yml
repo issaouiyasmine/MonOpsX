@@ -11,6 +11,9 @@ services:
       # Déploiement: remplacez par une URL publique, par exemple https://api.votre-domaine.com.
       # Téléphone physique sur Wi-Fi: localhost pointe vers le téléphone, utilisez une IP LAN ou une URL déployée.
       EXPO_PUBLIC_API_URL: http://localhost:8000
+      EXPO_PUBLIC_GRAFANA_BASE_URL: http://localhost:3000
+      EXPO_PUBLIC_GRAFANA_GLOBAL_DASHBOARDS: "Vue globale|/d/monopsx-global/monopsx-global?orgId=1"
+      EXPO_PUBLIC_GRAFANA_SERVER_DASHBOARDS: "Métriques serveur|/d/monopsx-server/monopsx-server?orgId=1&var-server_id={serverId}"
       EXPO_NO_TELEMETRY: "1"
       REACT_NATIVE_PACKAGER_HOSTNAME: localhost
     ports:
@@ -50,6 +53,11 @@ services:
       MONGO_HOST: mongodb
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      PREDICTION_ENABLED: ${PREDICTION_ENABLED:-True}
+      PREDICTION_MODE: ${PREDICTION_MODE:-mock}
+      PREDICTION_HORIZON_DAYS: ${PREDICTION_HORIZON_DAYS:-3}
+      PREDICTION_COOLDOWN_HOURS: ${PREDICTION_COOLDOWN_HOURS:-24}
+      PREDICTION_METRICS_LIMIT: ${PREDICTION_METRICS_LIMIT:-24}
     ports:
       - "0.0.0.0:8000:8000"
     depends_on:
@@ -65,6 +73,7 @@ services:
       GF_SERVER_ALLOW_EMBEDDING: "true"
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource
       # Pour des tableaux de bord basés sur l'API, ajoutez une datasource JSON/Infinity
       # dans Grafana et utilisez les URL de l'API MonOpsX depuis le réseau Docker.
       # Tableaux globaux: vue de tous les serveurs.
@@ -73,12 +82,15 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       api:
         condition: service_started
 
   ollama:
     image: ollama/ollama:0.9.0
+    profiles: ["ollama"]
     restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
@@ -91,6 +103,7 @@ services:
 
   ollama-pull:
     image: ollama/ollama:0.9.0
+    profiles: ["ollama"]
     restart: "no"
     environment:
       OLLAMA_HOST: http://ollama:11434

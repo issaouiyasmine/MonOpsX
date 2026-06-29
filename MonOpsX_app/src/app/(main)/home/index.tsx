@@ -1,21 +1,68 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
 // Metro resolves this to .web.tsx or .native.tsx; eslint-import does not understand that Expo convention here.
 // eslint-disable-next-line import/no-unresolved
 import { GrafanaDashboardFrame } from "@/components/grafana-dashboard-frame";
+import { DashboardHistoryCharts } from "@/components/metric-charts";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
+import type { DashboardEventType, DashboardMetrics, DashboardPeriod } from "@/models/dashboard.model";
+import type { Server } from "@/models/server.model";
+import { DashboardService } from "@/services/dashboard.service";
+import { ServerService } from "@/services/server.service";
 import { getGlobalGrafanaConfig, type GrafanaDashboard } from "@/utils/grafana";
+
+const periods: DashboardPeriod[] = ["1h", "6h", "24h", "7d", "30d"];
+const eventTypes: DashboardEventType[] = ["all", "deployment", "crash", "threshold", "status", "info"];
 
 export default function Home() {
   const config = useMemo(() => getGlobalGrafanaConfig(), []);
+  const [servers, setServers] = useState<Server[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardMetrics | null>(null);
+  const [period, setPeriod] = useState<DashboardPeriod>("24h");
+  const [serverId, setServerId] = useState("all");
+  const [eventType, setEventType] = useState<DashboardEventType>("all");
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState(config.dashboards[0]?.id);
   const [loading, setLoading] = useState(Boolean(config.dashboards[0]));
   const [frameError, setFrameError] = useState(false);
 
   const selectedDashboard = config.dashboards.find((dashboard) => dashboard.id === selectedId) ?? config.dashboards[0];
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadDashboard() {
+      setMetricsLoading(true);
+      setMetricsError(null);
+      try {
+        const [serverData, dashboardData] = await Promise.all([
+          ServerService.getAll(),
+          DashboardService.getMetrics({
+            period,
+            serverId: serverId === "all" ? undefined : serverId,
+            eventType,
+          }),
+        ]);
+        if (mounted) {
+          setServers(serverData);
+          setDashboard(dashboardData);
+        }
+      } catch {
+        if (mounted) setMetricsError("Impossible de charger les métriques historiques.");
+      } finally {
+        if (mounted) setMetricsLoading(false);
+      }
+    }
+
+    loadDashboard();
+    return () => {
+      mounted = false;
+    };
+  }, [eventType, period, serverId]);
 
   function selectDashboard(dashboard: GrafanaDashboard) {
     setSelectedId(dashboard.id);
@@ -34,8 +81,8 @@ export default function Home() {
       <View style={styles.page}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.heading}>État global des serveurs</Text>
-            <Text style={styles.subheading}>Récapitulatif Grafana de tous les serveurs surveillés.</Text>
+            <Text style={styles.heading}>Etat global des serveurs</Text>
+            <Text style={styles.subheading}>Metriques collectees de tous les serveurs surveilles.</Text>
           </View>
           {selectedDashboard && (
             <Pressable style={styles.openButton} onPress={openGrafana}>
@@ -45,13 +92,61 @@ export default function Home() {
           )}
         </View>
 
-        {!config.configured && <EmptyState />}
+        <View style={styles.filterPanel}>
+          <FilterGroup label="Période" options={periods} value={period} onChange={(value) => setPeriod(value as DashboardPeriod)} />
+          <FilterGroup
+            label="Serveur"
+            options={["all", ...servers.map((server) => server.id)]}
+            labels={{ all: "Tous les serveurs", ...Object.fromEntries(servers.map((server) => [server.id, server.name || server.hostname])) }}
+            value={serverId}
+            onChange={setServerId}
+          />
+          <FilterGroup
+            label="Type événement"
+            options={eventTypes}
+            labels={{
+              all: "Tous",
+              deployment: "Déploiement",
+              crash: "Incident",
+              threshold: "Seuil",
+              status: "Statut",
+              info: "Info",
+            }}
+            value={eventType}
+            onChange={(value) => setEventType(value as DashboardEventType)}
+          />
+        </View>
+
+        {metricsLoading && (
+          <View style={styles.emptyCard}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.emptyText}>Chargement des metriques collectees</Text>
+          </View>
+        )}
+
+        {metricsError && (
+          <View style={styles.alert}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.info} />
+            <Text style={styles.alertText}>{metricsError}</Text>
+          </View>
+        )}
+
+        {!metricsLoading && !metricsError && dashboard && <DashboardHistoryCharts data={dashboard} />}
+
+        {!config.configured && (
+          <View style={styles.alert}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.info} />
+            <Text style={styles.alertText}>
+              {"Grafana n'est pas configure dans l'environnement Expo. Les graphiques natifs affichent les metriques collectees en attendant."}
+            </Text>
+          </View>
+        )}
 
         {config.configured && config.errors.length > 0 && (
           <View style={styles.alert}>
             <Ionicons name="warning-outline" size={20} color={colors.alert} />
             <View style={styles.alertTextWrap}>
-              <Text style={styles.alertTitle}>La configuration Grafana nécessite votre attention</Text>
+              <Text style={styles.alertTitle}>La configuration Grafana necessite votre attention</Text>
               {config.errors.map((error) => (
                 <Text key={error} style={styles.alertText}>
                   {error}
@@ -64,8 +159,8 @@ export default function Home() {
         {config.configured && !selectedDashboard && (
           <View style={styles.emptyCard}>
             <Ionicons name="analytics-outline" size={34} color={colors.muted} />
-            <Text style={styles.emptyTitle}>Aucun tableau de bord valide trouvé</Text>
-            <Text style={styles.emptyText}>Vérifiez EXPO_PUBLIC_GRAFANA_DASHBOARDS et utilisez le format Titre|URL.</Text>
+            <Text style={styles.emptyTitle}>Aucun tableau de bord valide trouve</Text>
+            <Text style={styles.emptyText}>Verifiez EXPO_PUBLIC_GRAFANA_DASHBOARDS et utilisez le format Titre|URL.</Text>
           </View>
         )}
 
@@ -106,7 +201,7 @@ export default function Home() {
                 <View style={styles.alert}>
                   <Ionicons name="information-circle-outline" size={20} color={colors.info} />
                   <Text style={styles.alertText}>
-                    Grafana ne s'est pas chargé dans l'application. Vérifiez que l'intégration est autorisée, puis essayez de l'ouvrir directement.
+                    {"Grafana ne s'est pas charge dans l'application. Les graphiques natifs restent disponibles ci-dessus."}
                   </Text>
                 </View>
               )}
@@ -128,14 +223,34 @@ export default function Home() {
   );
 }
 
-function EmptyState() {
+function FilterGroup({
+  label,
+  options,
+  labels = {},
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  labels?: Record<string, string>;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
-    <View style={styles.emptyCard}>
-      <Ionicons name="analytics-outline" size={36} color={colors.primary} />
-      <Text style={styles.emptyTitle}>Le tableau de bord Grafana n'est pas configuré</Text>
-      <Text style={styles.emptyText}>
-        Ajoutez EXPO_PUBLIC_GRAFANA_BASE_URL et EXPO_PUBLIC_GRAFANA_GLOBAL_DASHBOARDS à votre environnement Expo.
-      </Text>
+    <View style={styles.filterGroup}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <View style={styles.filterOptions}>
+        {options.map((option) => {
+          const active = option === value;
+          return (
+            <Pressable key={option} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => onChange(option)}>
+              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]} numberOfLines={1}>
+                {labels[option] ?? option}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -178,6 +293,49 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.medium,
     fontSize: typography.body,
+  },
+  filterPanel: {
+    gap: spacing.md,
+    borderRadius: radii.medium,
+    padding: spacing.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterGroup: {
+    gap: spacing.sm,
+  },
+  filterLabel: {
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+  },
+  filterOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  filterChip: {
+    minHeight: 34,
+    maxWidth: 220,
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: "rgba(14,165,255,0.13)",
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: typography.caption,
+  },
+  filterChipTextActive: {
+    color: colors.primary,
   },
   tabs: {
     flexDirection: "row",
@@ -260,7 +418,7 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
   },
   emptyCard: {
-    minHeight: 280,
+    minHeight: 220,
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,

@@ -1,11 +1,11 @@
 export const colors = {
-  background: "#0B1220",
-  sidebar: "#07172A",
+  background: "#081220",
+  sidebar: "#081220",
   surface: "#1E293B",
   card: "#111F33",
   primary: "#0EA5FF",
   primaryDark: "#2563EB",
-  text: "#F8FAFC",
+  text: "#FFFFFF",
   muted: "#64748B",
   border: "#263B55",
   input: "#0B1728",
@@ -14,6 +14,8 @@ export const colors = {
   warning: "#F97316",
   danger: "#EF4444",
   info: "#8B5CF6",
+  white: "#FFFFFF",
+  black: "#000000",
   overlay: "rgba(2, 8, 23, 0.76)",
 } as const;
 

@@ -5,6 +5,7 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View 
 
 import { AppShell } from "@/components/app-shell";
 import { FormField } from "@/components/form-field";
+import { IconTooltipButton } from "@/components/icon-tooltip-button";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
 import type { Server } from "@/models/server.model";
 import { useToast } from "@/providers/toast-provider";
@@ -240,41 +241,11 @@ export default function Servers() {
                   </View>
                 </View>
                 <View style={styles.actionsCell}>
-                  <Pressable
-                    accessibilityLabel="Voir les détails"
-                    style={styles.actionIconButton}
-                    onPress={() => openDetails(server)}
-                  >
-                    <Ionicons name="eye-outline" size={18} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel="Modifier le serveur"
-                    style={styles.actionIconButton}
-                    onPress={() => openEdit(server)}
-                  >
-                    <Ionicons name="create-outline" size={18} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel="Copier le token"
-                    style={styles.actionIconButton}
-                    onPress={() => copyToken(server)}
-                  >
-                    <Ionicons name="key-outline" size={18} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel="Régénérer le token"
-                    style={styles.actionIconButton}
-                    onPress={() => setServerToRotate(server)}
-                  >
-                    <Ionicons name="refresh-outline" size={18} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel="Supprimer le serveur"
-                    style={[styles.actionIconButton, styles.dangerIconButton]}
-                    onPress={() => setServerToDelete(server)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                  </Pressable>
+                  <IconTooltipButton label="Voir les détails" icon="eye-outline" onPress={() => openDetails(server)} />
+                  <IconTooltipButton label="Modifier le serveur" icon="create-outline" onPress={() => openEdit(server)} />
+                  <IconTooltipButton label="Copier le token" icon="key-outline" onPress={() => copyToken(server)} />
+                  <IconTooltipButton label="Régénérer le token" icon="refresh-outline" color={colors.warning} onPress={() => setServerToRotate(server)} />
+                  <IconTooltipButton label="Supprimer le serveur" icon="trash-outline" danger onPress={() => setServerToDelete(server)} />
                 </View>
               </View>
             ))}
@@ -404,6 +375,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     minHeight: 42,
+    flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -420,10 +392,15 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
   },
   filters: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
     gap: spacing.md,
   },
   searchBox: {
     minHeight: 46,
+    flex: 1,
+    minWidth: 0,
     maxWidth: 640,
     flexDirection: "row",
     alignItems: "center",
@@ -495,6 +472,7 @@ const styles = StyleSheet.create({
     minHeight: 68,
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: spacing.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -521,9 +499,12 @@ const styles = StyleSheet.create({
     minWidth: 130,
   },
   actionsCell: {
-    width: 234,
+    flex: 1,
+    minWidth: 190,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
     gap: spacing.sm,
   },
   serverName: {
@@ -558,21 +539,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.medium,
     fontSize: typography.caption,
-  },
-  actionIconButton: {
-    width: 38,
-    height: 38,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radii.medium,
-    backgroundColor: colors.primaryDark,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  dangerIconButton: {
-    backgroundColor: "rgba(239,68,68,0.1)",
-    borderColor: "rgba(239,68,68,0.35)",
   },
   modalOverlay: {
     flex: 1,

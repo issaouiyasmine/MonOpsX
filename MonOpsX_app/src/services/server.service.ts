@@ -4,6 +4,7 @@ import type {
   CreateServerPayload,
   RotatedServerToken,
   Server,
+  ServerMetric,
   UpdateServerPayload,
 } from "@/models/server.model";
 
@@ -29,6 +30,11 @@ export const ServerService = {
 
   async rotateToken(serverId: string): Promise<RotatedServerToken> {
     const { data } = await api.post<RotatedServerToken>(`/servers/${serverId}/rotate-token`);
+    return data;
+  },
+
+  async getMetrics(serverId: string, limit = 100): Promise<ServerMetric[]> {
+    const { data } = await api.get<ServerMetric[]>(`/servers/${serverId}/metrics`, { params: { limit } });
     return data;
   },
 };

@@ -32,11 +32,31 @@ export interface ServerEvent {
 }
 
 export interface ServerLatestMetrics extends Record<string, unknown> {
+  cpu_percent?: number;
+  memory_percent?: number;
+  disk_percent?: number;
+  load_average_1m?: number | null;
+  uptime_seconds?: number;
   docker?: ServerDockerState | null;
   events?: ServerEvent[];
   agent_version?: string;
   operating_system?: string | null;
   collected_at?: string;
+}
+
+export interface ServerMetric {
+  id: string;
+  server_id: string;
+  agent_version: string;
+  collected_at: string;
+  hostname: string;
+  ip: string;
+  operating_system?: string | null;
+  metrics: ServerLatestMetrics;
+  docker?: ServerDockerState | null;
+  events: ServerEvent[];
+  status: string;
+  created_at: string;
 }
 
 export interface CreateServerPayload {
