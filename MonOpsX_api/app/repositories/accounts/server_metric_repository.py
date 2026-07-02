@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from bson import ObjectId
@@ -71,7 +71,15 @@ class ServerMetricRepository:
     @staticmethod
     def _sample_collected_at(sample: dict[str, Any]) -> datetime:
         value = sample.get("collected_at")
-        return value if isinstance(value, datetime) else datetime.min
+        return ServerMetricRepository._sort_datetime(value)
+
+    @staticmethod
+    def _sort_datetime(value: datetime | None) -> datetime:
+        if not isinstance(value, datetime):
+            return datetime.min
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
 
     @staticmethod
     def _simple_metrics_are_equal(
@@ -190,10 +198,13 @@ class ServerMetricRepository:
         server_id: str,
         limit: int
     ) -> list[ServerMetric]:
-        server_metrics = await ServerMetricRepository._get_recent_from_server_database(
-            server_id,
-            limit
-        )
+        try:
+            server_metrics = await ServerMetricRepository._get_recent_from_server_database(
+                server_id,
+                limit
+            )
+        except PyMongoError:
+            server_metrics = []
 
         if len(server_metrics) < limit:
             legacy_metrics = await ServerMetricRepository._get_recent_from_legacy_account_database(
@@ -204,7 +215,7 @@ class ServerMetricRepository:
             server_metrics.extend(legacy_metrics)
 
         server_metrics.sort(
-            key=lambda metric: metric.collected_at,
+            key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at),
             reverse=True
         )
         return server_metrics[:limit]
@@ -224,7 +235,7 @@ class ServerMetricRepository:
                 if ServerMetricRepository._matches_event_type(metric.events, event_type)
             ]
 
-        metrics.sort(key=lambda metric: metric.collected_at)
+        metrics.sort(key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at))
         return metrics
 
     @staticmethod
@@ -235,12 +246,15 @@ class ServerMetricRepository:
         end: datetime,
         event_type: str | None = None
     ) -> list[ServerMetric]:
-        server_metrics = await ServerMetricRepository._get_range_from_server_database(
-            server_id,
-            start,
-            end,
-            event_type
-        )
+        try:
+            server_metrics = await ServerMetricRepository._get_range_from_server_database(
+                server_id,
+                start,
+                end,
+                event_type
+            )
+        except PyMongoError:
+            server_metrics = []
         legacy_metrics = await ServerMetricRepository._get_range_from_legacy_account_database(
             account_id,
             server_id,
@@ -249,7 +263,7 @@ class ServerMetricRepository:
             event_type
         )
         server_metrics.extend(legacy_metrics)
-        server_metrics.sort(key=lambda metric: metric.collected_at)
+        server_metrics.sort(key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at))
         return server_metrics
 
     @staticmethod
@@ -289,7 +303,7 @@ class ServerMetricRepository:
                     for sample in samples
                 ]
                 month_metrics.sort(
-                    key=lambda metric: metric.collected_at,
+                    key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at),
                     reverse=True
                 )
                 metrics.extend(month_metrics)
@@ -298,7 +312,7 @@ class ServerMetricRepository:
                     break
 
         metrics.sort(
-            key=lambda metric: metric.collected_at,
+            key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at),
             reverse=True
         )
         return metrics[:limit]
@@ -342,7 +356,7 @@ class ServerMetricRepository:
                         ServerMetricRepository._metric_from_sample(sample, server_object_id)
                     )
 
-        metrics.sort(key=lambda metric: metric.collected_at)
+        metrics.sort(key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at))
         return metrics
 
     @staticmethod
@@ -381,7 +395,7 @@ class ServerMetricRepository:
             )
 
         metrics.sort(
-            key=lambda metric: metric.collected_at,
+            key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at),
             reverse=True
         )
         return metrics[:limit]
@@ -420,17 +434,14 @@ class ServerMetricRepository:
                     continue
                 metrics.append(ServerMetric.model_validate(item))
 
-        metrics.sort(key=lambda metric: metric.collected_at)
+        metrics.sort(key=lambda metric: ServerMetricRepository._sort_datetime(metric.collected_at))
         return metrics
 
     @staticmethod
     def _is_in_range(value: datetime, start: datetime, end: datetime) -> bool:
-        if value.tzinfo is not None:
-            value = value.replace(tzinfo=None)
-        if start.tzinfo is not None:
-            start = start.replace(tzinfo=None)
-        if end.tzinfo is not None:
-            end = end.replace(tzinfo=None)
+        value = ServerMetricRepository._sort_datetime(value)
+        start = ServerMetricRepository._sort_datetime(start)
+        end = ServerMetricRepository._sort_datetime(end)
         return start <= value <= end
 
     @staticmethod

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from bson import ObjectId
@@ -78,7 +78,16 @@ class PredictionService:
         for metric in recent_metrics:
             deduped[str(metric.id)] = metric
 
-        return sorted(deduped.values(), key=lambda metric: metric.collected_at)
+        return sorted(
+            deduped.values(),
+            key=lambda metric: PredictionService._sort_datetime(metric.collected_at)
+        )
+
+    @staticmethod
+    def _sort_datetime(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
 
     @staticmethod
     def _candidate_predictions(

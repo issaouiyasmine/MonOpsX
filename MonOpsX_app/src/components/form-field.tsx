@@ -89,7 +89,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     overflow: "hidden",
-    outlineStyle: "none",
     color: colors.text,
     fontFamily: fonts.regular,
     fontSize: typography.body,

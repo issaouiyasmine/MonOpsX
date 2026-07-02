@@ -90,7 +90,6 @@ services:
 
   ollama:
     image: ollama/ollama:0.9.0
-    profiles: ["ollama"]
     restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
@@ -103,7 +102,6 @@ services:
 
   ollama-pull:
     image: ollama/ollama:0.9.0
-    profiles: ["ollama"]
     restart: "no"
     environment:
       OLLAMA_HOST: http://ollama:11434

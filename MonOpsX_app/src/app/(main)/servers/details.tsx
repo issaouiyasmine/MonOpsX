@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
 import { FormField } from "@/components/form-field";
@@ -13,6 +13,7 @@ import { DashboardHistoryCharts } from "@/components/metric-charts";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
 import type { DashboardEventType, DashboardMetrics, DashboardPeriod } from "@/models/dashboard.model";
 import type { Server, ServerContainer, ServerEvent } from "@/models/server.model";
+import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import { DashboardService } from "@/services/dashboard.service";
 import { ServerService } from "@/services/server.service";
@@ -26,6 +27,7 @@ const dashboardEventTypes: DashboardEventType[] = ["all", "deployment", "crash",
 
 export default function ServerDetails() {
   const { showToast } = useToast();
+  const { session } = useAuth();
   const params = useLocalSearchParams();
   const serverId = paramValue(params.serverId);
   const initialServer = serverFromValues(
@@ -208,7 +210,7 @@ export default function ServerDetails() {
           </View>
 
           {activeTab === "informations" && <ServerInformation server={server} />}
-          {activeTab === "dashboards" && <ServerGrafanaView server={serverToGrafanaContext(server)} />}
+          {activeTab === "dashboards" && <ServerGrafanaView server={serverToGrafanaContext(server, session?.account_id)} />}
           {activeTab === "containers" && (
             <ServerContainers docker={server.latest_metrics.docker} events={server.latest_metrics.events} />
           )}
@@ -394,6 +396,9 @@ function ServerContainers({
   docker: Server["latest_metrics"]["docker"];
   events: Server["latest_metrics"]["events"];
 }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 720;
+  const [expandedContainerKey, setExpandedContainerKey] = useState<string | null>(null);
   const containers = docker?.containers ?? [];
   const latestEvents = events ?? [];
 
@@ -422,9 +427,18 @@ function ServerContainers({
 
       {docker?.available && containers.length > 0 && (
         <View style={styles.containerList}>
-          {containers.map((container) => (
-            <ContainerRow key={`${container.name}-${container.image}`} container={container} />
-          ))}
+          {containers.map((container) => {
+            const key = `${container.name}-${container.image}`;
+            return (
+              <ContainerRow
+                key={key}
+                compact={compact}
+                container={container}
+                expanded={expandedContainerKey === key}
+                onToggle={() => setExpandedContainerKey((current) => (current === key ? null : key))}
+              />
+            );
+          })}
         </View>
       )}
 
@@ -444,21 +458,38 @@ function ServerContainers({
   );
 }
 
-function ContainerRow({ container }: { container: ServerContainer }) {
+function ContainerRow({
+  compact,
+  container,
+  expanded,
+  onToggle,
+}: {
+  compact: boolean;
+  container: ServerContainer;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <View style={styles.containerRow}>
-      <View style={styles.containerMain}>
-        <Text style={styles.containerName} numberOfLines={1}>
-          {container.name}
-        </Text>
-        <Text style={styles.containerImage} numberOfLines={1}>
-          {container.image}
-        </Text>
-      </View>
-      <InfoPill label="Statut" value={containerStatusLabel(container.status)} />
-      <InfoPill label="Dernier build" value={formatDate(container.last_build_at ?? null)} />
-      <InfoPill label="Temps actif" value={durationValue(container.uptime_seconds)} />
-      <InfoPill label="Redémarrages" value={String(container.restart_count ?? 0)} />
+    <View style={[styles.containerRow, compact && styles.containerRowCompact]}>
+      <Pressable disabled={!compact} style={styles.containerMainRow} onPress={onToggle}>
+        <View style={styles.containerMain}>
+          <Text style={styles.containerName} numberOfLines={compact ? 2 : 1}>
+            {container.name}
+          </Text>
+          <Text style={styles.containerImage} numberOfLines={compact ? 2 : 1}>
+            {container.image}
+          </Text>
+        </View>
+        {compact ? <Ionicons name={expanded ? "chevron-up-outline" : "chevron-down-outline"} size={20} color={colors.muted} /> : null}
+      </Pressable>
+      {!compact || expanded ? (
+        <View style={[styles.containerInfo, compact && styles.containerInfoCompact]}>
+          <InfoPill label="Statut" value={containerStatusLabel(container.status)} />
+          <InfoPill label="Dernier build" value={formatDate(container.last_build_at ?? null)} />
+          <InfoPill label="Temps actif" value={durationValue(container.uptime_seconds)} />
+          <InfoPill label="Redémarrages" value={String(container.restart_count ?? 0)} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -740,8 +771,9 @@ function serverFromValues(
   };
 }
 
-function serverToGrafanaContext(server: Server): GrafanaServerContext {
+function serverToGrafanaContext(server: Server, accountId?: string): GrafanaServerContext {
   return {
+    accountId,
     serverId: server.id,
     serverName: server.name,
     hostname: server.hostname,
@@ -1030,23 +1062,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  containerMain: {
+  containerRowCompact: {
+    alignItems: "stretch",
+  },
+  containerMainRow: {
     flex: 1.4,
     minWidth: 220,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  containerMain: {
+    flex: 1,
+    minWidth: 0,
   },
   containerName: {
     color: colors.text,
     fontFamily: fonts.bold,
     fontSize: typography.bodyLarge,
+    lineHeight: 22,
   },
   containerImage: {
     marginTop: spacing.xs,
     color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: typography.caption,
+    lineHeight: 17,
+  },
+  containerInfo: {
+    flex: 3,
+    minWidth: 0,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  containerInfoCompact: {
+    width: "100%",
+    flex: 0,
   },
   infoPill: {
     minWidth: 130,
+    flexGrow: 1,
     gap: spacing.xs,
     borderRadius: radii.small,
     padding: spacing.sm,
@@ -1102,6 +1158,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: typography.body,
+    lineHeight: 21,
   },
   emptyText: {
     color: colors.muted,

@@ -10,6 +10,7 @@ import { DashboardHistoryCharts } from "@/components/metric-charts";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
 import type { DashboardEventType, DashboardMetrics, DashboardPeriod } from "@/models/dashboard.model";
 import type { Server } from "@/models/server.model";
+import { useAuth } from "@/providers/auth-provider";
 import { DashboardService } from "@/services/dashboard.service";
 import { ServerService } from "@/services/server.service";
 import { getGlobalGrafanaConfig, type GrafanaDashboard } from "@/utils/grafana";
@@ -18,7 +19,8 @@ const periods: DashboardPeriod[] = ["1h", "6h", "24h", "7d", "30d"];
 const eventTypes: DashboardEventType[] = ["all", "deployment", "crash", "threshold", "status", "info"];
 
 export default function Home() {
-  const config = useMemo(() => getGlobalGrafanaConfig(), []);
+  const { session } = useAuth();
+  const config = useMemo(() => getGlobalGrafanaConfig(session?.account_id), [session?.account_id]);
   const [servers, setServers] = useState<Server[]>([]);
   const [dashboard, setDashboard] = useState<DashboardMetrics | null>(null);
   const [period, setPeriod] = useState<DashboardPeriod>("24h");

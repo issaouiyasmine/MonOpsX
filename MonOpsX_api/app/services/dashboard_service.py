@@ -1,9 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.repositories.accounts.server_metric_repository import ServerMetricRepository
 from app.repositories.accounts.server_repository import ServerRepository
-from app.repositories.global_repo.account_repository import AccountRepository
 
 
 class DashboardService:
@@ -29,7 +28,7 @@ class DashboardService:
         normalized = value.replace("Z", "+00:00")
         parsed = datetime.fromisoformat(normalized)
         if parsed.tzinfo is not None:
-            parsed = parsed.replace(tzinfo=None)
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         return parsed
 
     @staticmethod
@@ -52,6 +51,7 @@ class DashboardService:
     async def get_internal_dashboard(
         start: datetime,
         end: datetime,
+        account_id: str | None = None,
         server_id: str | None = None,
         event_type: str = "all"
     ) -> dict[str, Any]:
@@ -61,10 +61,25 @@ class DashboardService:
         summary = {"servers": 0, "online": 0, "degraded": 0, "offline": 0, "containers": 0, "points": 0, "events": 0}
         history_source = "range"
 
-        for account in await AccountRepository.find_all():
-            account_id = str(account.get("_id", ""))
+        if not account_id:
+            return {
+                "summary": summary,
+                "summary_rows": DashboardService._summary_rows(summary),
+                "servers": servers_payload,
+                "points": points,
+                "events": events,
+                "event_types": list(DashboardService.EVENT_TYPES),
+                "history_source": history_source,
+            }
+
+        accounts = [{"_id": account_id}]
+
+        for account in accounts:
+            current_account_id = str(account.get("_id", ""))
+            if not current_account_id:
+                continue
             account_payload = await DashboardService._build_dashboard_for_account(
-                account_id,
+                current_account_id,
                 start,
                 end,
                 server_id,
@@ -89,11 +104,18 @@ class DashboardService:
         }
 
     @staticmethod
-    async def get_internal_servers() -> list[dict[str, str]]:
+    async def get_internal_servers(account_id: str | None = None) -> list[dict[str, str]]:
         servers: list[dict[str, str]] = [{"label": "Tous les serveurs", "value": "all"}]
-        for account in await AccountRepository.find_all():
-            account_id = str(account.get("_id", ""))
-            for server in await ServerRepository.get_all(account_id):
+        if not account_id:
+            return servers
+
+        accounts = [{"_id": account_id}]
+
+        for account in accounts:
+            current_account_id = str(account.get("_id", ""))
+            if not current_account_id:
+                continue
+            for server in await ServerRepository.get_all(current_account_id):
                 servers.append({
                     "label": server.name or server.hostname or str(server.id),
                     "value": str(server.id),

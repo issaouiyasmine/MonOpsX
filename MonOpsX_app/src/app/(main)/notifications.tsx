@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
@@ -12,6 +12,8 @@ import { canAccessNotifications, canUpdateNotifications } from "@/utils/permissi
 
 export default function NotificationsPage() {
   const { session } = useAuth();
+  const { width } = useWindowDimensions();
+  const compact = width < 720;
   const {
     notifications,
     loading,
@@ -120,6 +122,7 @@ export default function NotificationsPage() {
                 key={item.id}
                 item={item}
                 canUpdate={canUpdate}
+                compact={compact}
                 onOpen={() => openNotification(item)}
                 onDelete={() => deleteNotification(item.id).catch(() => undefined)}
               />
@@ -153,30 +156,46 @@ export default function NotificationsPage() {
 function NotificationRow({
   item,
   canUpdate,
+  compact,
   onOpen,
   onDelete,
 }: {
   item: NotificationItem;
   canUpdate: boolean;
+  compact: boolean;
   onOpen: () => void;
   onDelete: () => void;
 }) {
   const tone = severityColor(item.severity);
 
   return (
-    <Pressable style={[styles.notificationRow, !item.is_read && styles.notificationUnread]} onPress={onOpen}>
+    <Pressable style={[styles.notificationRow, compact && styles.notificationRowCompact, !item.is_read && styles.notificationUnread]} onPress={onOpen}>
       <View style={[styles.notificationDot, { backgroundColor: tone }]} />
       <View style={styles.notificationBody}>
-        <View style={styles.notificationMeta}>
-          <Text numberOfLines={1} style={styles.notificationType}>
+        <View style={[styles.notificationMeta, compact && styles.notificationMetaCompact]}>
+          <Text numberOfLines={compact ? 2 : 1} style={styles.notificationType}>
             {labelForType(item.type)} - {labelForSeverity(item.severity)}
           </Text>
           <Text style={styles.notificationTime}>{formatFullDate(item.created_at)}</Text>
         </View>
         <Text numberOfLines={3} style={styles.notificationMessage}>{item.message}</Text>
-        <Text numberOfLines={1} style={styles.notificationServer}>{item.server_name ?? item.server_id}</Text>
+        <Text numberOfLines={compact ? 2 : 1} style={styles.notificationServer}>{item.server_name ?? item.server_id}</Text>
+        {compact && canUpdate ? (
+          <View style={styles.notificationActionsCompact}>
+            <Pressable
+              accessibilityLabel="Supprimer"
+              style={styles.deleteButton}
+              onPress={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.danger} />
+            </Pressable>
+          </View>
+        ) : null}
       </View>
-      {canUpdate && (
+      {canUpdate && !compact ? (
         <View style={styles.notificationActions}>
           <Pressable
             accessibilityLabel="Supprimer"
@@ -189,7 +208,7 @@ function NotificationRow({
             <Ionicons name="trash-outline" size={20} color={colors.danger} />
           </Pressable>
         </View>
-      )}
+      ) : null}
     </Pressable>
   );
 }
@@ -328,6 +347,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     padding: spacing.md,
   },
+  notificationRowCompact: {
+    alignItems: "flex-start",
+  },
   notificationUnread: {
     borderColor: "rgba(14,165,255,0.35)",
     backgroundColor: "rgba(14,165,255,0.08)",
@@ -349,6 +371,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     flexWrap: "wrap",
   },
+  notificationMetaCompact: {
+    alignItems: "flex-start",
+  },
   notificationType: {
     flex: 1,
     minWidth: 160,
@@ -360,6 +385,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: typography.caption,
+    lineHeight: 17,
   },
   notificationMessage: {
     color: colors.text,
@@ -371,10 +397,16 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontFamily: fonts.medium,
     fontSize: typography.caption,
+    lineHeight: 17,
   },
   notificationActions: {
     flexDirection: "row",
     gap: spacing.xs,
+  },
+  notificationActionsCompact: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    marginTop: spacing.xs,
   },
   deleteButton: {
     width: 38,

@@ -8,11 +8,7 @@ export const PASSWORD_RULES = [
   {
     label: "Un caractère spécial",
     test: (value: string) => /[^A-Za-z0-9]/.test(value),
-  },
-  {
-    label: "72 octets maximum",
-    test: (value: string) => new TextEncoder().encode(value).length <= 72,
-  },
+  }
 ] as const;
 
 export function getPasswordError(password: string): string | null {

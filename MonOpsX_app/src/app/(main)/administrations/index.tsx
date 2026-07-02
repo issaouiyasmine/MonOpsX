@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -16,6 +15,7 @@ import { AppShell } from "@/components/app-shell";
 import { FormField } from "@/components/form-field";
 import { IconTooltipButton } from "@/components/icon-tooltip-button";
 import { PrimaryButton } from "@/components/primary-button";
+import { SearchInput } from "@/components/search-input";
 import { permissionRows, Permissions, type PermissionAction, type PermissionRow } from "@/constants/permissions";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
 import type { Role, User } from "@/models/administration.model";
@@ -97,6 +97,8 @@ export default function Administration() {
   const [roleForm, setRoleForm] = useState(emptyRole);
   const [saving, setSaving] = useState(false);
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -295,10 +297,7 @@ export default function Administration() {
           ) : null}
         </View>
         <View style={styles.tools}>
-          <View style={styles.search}>
-            <Ionicons name="search" size={18} color={colors.muted} />
-            <TextInput placeholder="Rechercher..." placeholderTextColor={colors.muted} value={query} onChangeText={setQuery} style={styles.searchInput} />
-          </View>
+          <SearchInput containerStyle={styles.search} placeholder="Rechercher..." value={query} onChangeText={setQuery} />
           {tab === "users" && session?.permissions.includes(Permissions.USERS_CREATE) ? (
             <Pressable style={styles.add} onPress={() => openUser()}>
               <Ionicons name="add" size={20} color={colors.text} />
@@ -318,62 +317,105 @@ export default function Administration() {
         <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
       ) : tab === "users" ? (
         <View style={styles.list}>
-          {filteredUsers.map((user) => (
-            <View key={user.id} style={styles.row}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{user.first_name[0]}{user.last_name[0]}</Text>
+          {filteredUsers.map((user) => {
+            const expanded = expandedUserId === user.id;
+            const actions = (
+              <>
+                {session?.permissions.includes(Permissions.USERS_UPDATE) && !user.is_principal ? (
+                  <IconTooltipButton label="Modifier l utilisateur" icon="create-outline" onPress={() => openUser(user)} />
+                ) : null}
+                {session?.permissions.includes(Permissions.USERS_UPDATE) && !user.is_principal ? (
+                  <IconTooltipButton
+                    label={user.is_active ? "Desactiver l utilisateur" : "Activer l utilisateur"}
+                    icon={user.is_active ? "pause-circle-outline" : "play-circle-outline"}
+                    color={colors.warning}
+                    onPress={async () => {
+                      try {
+                        await AdministrationService.updateUser(user.id, { is_active: !user.is_active });
+                        showToast(user.is_active ? "Utilisateur désactivé." : "Utilisateur activé.");
+                        await load();
+                      } catch (error) {
+                        showToast(getApiErrorMessage(error), "error");
+                      }
+                    }}
+                  />
+                ) : null}
+                {session?.permissions.includes(Permissions.USERS_DELETE) && !user.is_principal ? (
+                  <IconTooltipButton label="Supprimer l utilisateur" icon="trash-outline" danger onPress={() => askDeleteUser(user)} />
+                ) : null}
+              </>
+            );
+
+            return (
+              <View key={user.id} style={[styles.row, compact && styles.compactRow]}>
+                <Pressable
+                  disabled={!compact}
+                  style={styles.rowMain}
+                  onPress={() => setExpandedUserId(expanded ? null : user.id)}
+                >
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{user.first_name[0]}{user.last_name[0]}</Text>
+                  </View>
+                  <View style={styles.grow}>
+                    <Text style={styles.name} numberOfLines={compact ? 2 : 1}>{user.first_name} {user.last_name}{user.is_principal ? " · Principal" : ""}</Text>
+                    <Text style={styles.sub} numberOfLines={compact ? 2 : 1}>{user.email} · {roleName(user.role_id)}</Text>
+                  </View>
+                  {compact ? <Ionicons name={expanded ? "chevron-up-outline" : "chevron-down-outline"} size={20} color={colors.muted} /> : null}
+                </Pressable>
+                {!compact ? (
+                  <>
+                    <View style={[styles.badge, user.is_active ? styles.badgeOn : styles.badgeOff]}>
+                      <Text style={styles.badgeText}>{user.is_active ? "Actif" : "Inactif"}</Text>
+                    </View>
+                    {actions}
+                  </>
+                ) : expanded ? (
+                  <View style={styles.expandedMeta}>
+                    <View style={[styles.badge, user.is_active ? styles.badgeOn : styles.badgeOff]}>
+                      <Text style={styles.badgeText}>{user.is_active ? "Actif" : "Inactif"}</Text>
+                    </View>
+                    <View style={styles.expandedActions}>{actions}</View>
+                  </View>
+                ) : null}
               </View>
-              <View style={styles.grow}>
-                <Text style={styles.name}>{user.first_name} {user.last_name}{user.is_principal ? " · Principal" : ""}</Text>
-                <Text style={styles.sub}>{user.email} · {roleName(user.role_id)}</Text>
-              </View>
-              <View style={[styles.badge, user.is_active ? styles.badgeOn : styles.badgeOff]}>
-                <Text style={styles.badgeText}>{user.is_active ? "Actif" : "Inactif"}</Text>
-              </View>
-              {session?.permissions.includes(Permissions.USERS_UPDATE) && !user.is_principal ? (
-                <IconTooltipButton label="Modifier l utilisateur" icon="create-outline" onPress={() => openUser(user)} />
-              ) : null}
-              {session?.permissions.includes(Permissions.USERS_UPDATE) && !user.is_principal ? (
-                <IconTooltipButton
-                  label={user.is_active ? "Desactiver l utilisateur" : "Activer l utilisateur"}
-                  icon={user.is_active ? "pause-circle-outline" : "play-circle-outline"}
-                  color={colors.warning}
-                  onPress={async () => {
-                    try {
-                      await AdministrationService.updateUser(user.id, { is_active: !user.is_active });
-                      showToast(user.is_active ? "Utilisateur désactivé." : "Utilisateur activé.");
-                      await load();
-                    } catch (error) {
-                      showToast(getApiErrorMessage(error), "error");
-                    }
-                  }}
-                />
-              ) : null}
-              {session?.permissions.includes(Permissions.USERS_DELETE) && !user.is_principal ? (
-                <IconTooltipButton label="Supprimer l utilisateur" icon="trash-outline" danger onPress={() => askDeleteUser(user)} />
-              ) : null}
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : (
         <View style={styles.list}>
-          {filteredRoles.map((role) => (
-            <View key={role.id} style={styles.row}>
-              <View style={styles.roleIcon}>
-                <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
+          {filteredRoles.map((role) => {
+            const expanded = expandedRoleId === role.id;
+            const actions = (
+              <>
+                {session?.permissions.includes(Permissions.ROLES_UPDATE) && !role.is_default ? (
+                  <IconTooltipButton label="Modifier le role" icon="create-outline" onPress={() => openRole(role)} />
+                ) : null}
+                {session?.permissions.includes(Permissions.ROLES_DELETE) && !role.is_default ? (
+                  <IconTooltipButton label="Supprimer le role" icon="trash-outline" danger onPress={() => askDeleteRole(role)} />
+                ) : null}
+              </>
+            );
+
+            return (
+              <View key={role.id} style={[styles.row, compact && styles.compactRow]}>
+                <Pressable
+                  disabled={!compact}
+                  style={styles.rowMain}
+                  onPress={() => setExpandedRoleId(expanded ? null : role.id)}
+                >
+                  <View style={styles.roleIcon}>
+                    <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
+                  </View>
+                  <View style={styles.grow}>
+                    <Text style={styles.name} numberOfLines={compact ? 2 : 1}>{role.name}{role.is_default ? " · Par défaut" : ""}</Text>
+                    <Text style={styles.sub}>{role.permissions.length} permission(s)</Text>
+                  </View>
+                  {compact ? <Ionicons name={expanded ? "chevron-up-outline" : "chevron-down-outline"} size={20} color={colors.muted} /> : null}
+                </Pressable>
+                {!compact ? actions : expanded ? <View style={styles.expandedActions}>{actions}</View> : null}
               </View>
-              <View style={styles.grow}>
-                <Text style={styles.name}>{role.name}{role.is_default ? " · Par défaut" : ""}</Text>
-                <Text style={styles.sub}>{role.permissions.length} permission(s)</Text>
-              </View>
-              {session?.permissions.includes(Permissions.ROLES_UPDATE) && !role.is_default ? (
-                <IconTooltipButton label="Modifier le role" icon="create-outline" onPress={() => openRole(role)} />
-              ) : null}
-              {session?.permissions.includes(Permissions.ROLES_DELETE) && !role.is_default ? (
-                <IconTooltipButton label="Supprimer le role" icon="trash-outline" danger onPress={() => askDeleteRole(role)} />
-              ) : null}
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -551,22 +593,25 @@ const styles = StyleSheet.create({
   tabText: { color: colors.muted, fontFamily: fonts.medium, fontSize: typography.bodyLarge },
   tabTextActive: { color: colors.primary },
   tools: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent: "space-between", alignItems: "center" },
-  search: { flex: 1, minWidth: 0, maxWidth: 520, height: 44, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radii.medium, paddingHorizontal: 12, backgroundColor: colors.input },
-  searchInput: { flex: 1, color: colors.text, fontFamily: fonts.regular, fontSize: typography.body },
+  search: { flex: 1, minWidth: 220, maxWidth: 520 },
   add: { height: 44, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, borderRadius: radii.medium, backgroundColor: colors.primaryDark },
   addText: { color: colors.text, fontFamily: fonts.medium, fontSize: typography.body },
   list: { gap: spacing.sm },
   row: { minHeight: 72, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.medium, backgroundColor: colors.card },
+  compactRow: { alignItems: "stretch" },
+  rowMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 12 },
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryDark },
   avatarText: { color: colors.text, fontFamily: fonts.bold },
   roleIcon: { width: 42, height: 42, borderRadius: radii.medium, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14,165,255,.12)" },
   grow: { flex: 1, minWidth: 120 },
-  name: { color: colors.text, fontFamily: fonts.medium, fontSize: typography.bodyLarge },
-  sub: { color: colors.muted, fontFamily: fonts.regular, fontSize: typography.caption, marginTop: 4 },
+  name: { color: colors.text, fontFamily: fonts.medium, fontSize: typography.bodyLarge, lineHeight: 22 },
+  sub: { color: colors.muted, fontFamily: fonts.regular, fontSize: typography.caption, lineHeight: 17, marginTop: 4 },
   badge: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: radii.round },
   badgeOn: { backgroundColor: "rgba(34,197,94,.16)" },
   badgeOff: { backgroundColor: "rgba(239,68,68,.16)" },
   badgeText: { color: colors.text, fontFamily: fonts.medium, fontSize: typography.caption },
+  expandedMeta: { width: "100%", flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, paddingLeft: 54 },
+  expandedActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
   empty: { minHeight: 400, alignItems: "center", justifyContent: "center" },
   emptyTitle: { color: colors.muted, fontFamily: fonts.medium, fontSize: typography.h3, marginTop: spacing.md },
   modalOverlay: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.overlay, padding: spacing.md },

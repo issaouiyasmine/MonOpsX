@@ -8,11 +8,18 @@
   "templating": {
     "list": [
       {
+        "name": "account_id",
+        "label": "Compte",
+        "type": "textbox",
+        "hide": 2,
+        "current": { "text": "", "value": "" }
+      },
+      {
         "name": "server_id",
         "label": "Serveur",
         "type": "query",
         "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "monopsx-api" },
-        "query": "/internal/grafana/servers",
+        "query": "/internal/grafana/servers?account_id=$account_id",
         "url_options": { "method": "GET" },
         "refresh": 1,
         "includeAll": false,
@@ -45,7 +52,7 @@
           "refId": "A",
           "type": "json",
           "source": "url",
-          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&account_id=$account_id&server_id=$server_id&event_type=$event_type",
           "url_options": { "method": "GET" },
           "root_selector": "summary_rows",
           "columns": [
@@ -67,7 +74,7 @@
           "refId": "A",
           "type": "json",
           "source": "url",
-          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&account_id=$account_id&server_id=$server_id&event_type=$event_type",
           "url_options": { "method": "GET" },
           "root_selector": "points",
           "columns": [
@@ -91,7 +98,7 @@
           "refId": "A",
           "type": "json",
           "source": "url",
-          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&account_id=$account_id&server_id=$server_id&event_type=$event_type",
           "url_options": { "method": "GET" },
           "root_selector": "points",
           "columns": [
@@ -113,7 +120,7 @@
           "refId": "A",
           "type": "json",
           "source": "url",
-          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&server_id=$server_id&event_type=$event_type",
+          "url": "/internal/grafana/metrics?from=${__from:date:iso}&to=${__to:date:iso}&account_id=$account_id&server_id=$server_id&event_type=$event_type",
           "url_options": { "method": "GET" },
           "root_selector": "events",
           "columns": [

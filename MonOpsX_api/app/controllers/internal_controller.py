@@ -7,8 +7,10 @@ router = APIRouter(prefix="/internal", tags=["Internal"])
 
 
 @router.get("/grafana/servers")
-async def grafana_servers() -> list[dict[str, str]]:
-    return await DashboardService.get_internal_servers()
+async def grafana_servers(
+    account_id: str | None = None
+) -> list[dict[str, str]]:
+    return await DashboardService.get_internal_servers(account_id)
 
 
 @router.get("/grafana/event-types")
@@ -23,6 +25,7 @@ async def grafana_event_types() -> list[dict[str, str]]:
 async def grafana_metrics(
     from_: str | None = Query(default=None, alias="from"),
     to: str | None = None,
+    account_id: str | None = None,
     server_id: str | None = None,
     event_type: str = "all"
 ) -> dict:
@@ -30,6 +33,7 @@ async def grafana_metrics(
     return await DashboardService.get_internal_dashboard(
         DashboardService.parse_datetime(from_, start),
         DashboardService.parse_datetime(to, end),
+        account_id,
         server_id,
         event_type
     )

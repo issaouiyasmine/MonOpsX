@@ -1,27 +1,46 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
 import { FormField } from "@/components/form-field";
 import { IconTooltipButton } from "@/components/icon-tooltip-button";
+import { PrimaryButton } from "@/components/primary-button";
+import { SearchInput } from "@/components/search-input";
 import { colors, fonts, radii, spacing, typography } from "@/constants/theme";
-import type { Server } from "@/models/server.model";
+import type { CreatedServer, CreateServerPayload, Server } from "@/models/server.model";
 import { useToast } from "@/providers/toast-provider";
 import { ServerService } from "@/services/server.service";
 import { getApiErrorMessage } from "@/utils/api-error";
 
 const statusFilters = ["all", "pending", "online", "degraded", "offline"] as const;
 type StatusFilter = (typeof statusFilters)[number];
+type FormErrors = Partial<Record<keyof CreateServerPayload, string>>;
+
+const initialCreateForm: CreateServerPayload = {
+  name: "",
+  hostname: "",
+  ip: "",
+};
+
+const agentDownloadUrl = process.env.EXPO_PUBLIC_MONOPSX_AGENT_DOWNLOAD_URL?.trim();
 
 export default function Servers() {
   const { showToast } = useToast();
+  const { width } = useWindowDimensions();
+  const compact = width < 720;
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateServerPayload>(initialCreateForm);
+  const [createErrors, setCreateErrors] = useState<FormErrors>({});
+  const [creatingServer, setCreatingServer] = useState(false);
+  const [createdServer, setCreatedServer] = useState<CreatedServer | null>(null);
   const [editingServer, setEditingServer] = useState<Server | null>(null);
   const [editName, setEditName] = useState("");
   const [serverToDelete, setServerToDelete] = useState<Server | null>(null);
@@ -74,6 +93,52 @@ export default function Servers() {
     setEditName(server.name);
   }
 
+  function openCreate() {
+    setCreateForm(initialCreateForm);
+    setCreateErrors({});
+    setCreatedServer(null);
+    setCreateOpen(true);
+  }
+
+  function closeCreate() {
+    setCreateOpen(false);
+    setCreatingServer(false);
+  }
+
+  function updateCreateField(field: keyof CreateServerPayload, value: string) {
+    setCreateForm((current) => ({ ...current, [field]: value }));
+    setCreateErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  async function submitCreate() {
+    const nextErrors = validateCreateForm(createForm);
+    setCreateErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setCreatingServer(true);
+    try {
+      const server = await ServerService.create({
+        name: createForm.name.trim(),
+        hostname: createForm.hostname.trim(),
+        ip: createForm.ip.trim(),
+      });
+      setCreatedServer(server);
+      setServers((current) => [server, ...current.filter((item) => item.id !== server.id)]);
+      setExpandedServerId(server.id);
+      showToast("Serveur crÃ©Ã© avec succÃ¨s.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setCreatingServer(false);
+    }
+  }
+
+  function openCreatedDetails() {
+    if (!createdServer) return;
+    openDetails(createdServer);
+    closeCreate();
+  }
+
   async function copyToken(server: Server) {
     if (!server.webhook_token) {
       showToast("Le token de ce serveur n'est pas disponible.", "warning");
@@ -85,6 +150,30 @@ export default function Servers() {
     } else {
       showToast("Impossible de copier automatiquement le token.", "error");
     }
+  }
+
+  async function copyCreatedToken() {
+    if (!createdServer) return;
+
+    if (await copyText(createdServer.webhook_token)) {
+      showToast("Token copiÃ©.");
+    } else {
+      showToast("Impossible de copier automatiquement. Le token reste sÃ©lectionnable.", "error");
+    }
+  }
+
+  async function copyCreatedCommand() {
+    if (!createdServer) return;
+
+    if (await copyText(`python agent.py --token ${createdServer.webhook_token}`)) {
+      showToast("Commande copiÃ©e.");
+    } else {
+      showToast("Impossible de copier automatiquement. La commande reste sÃ©lectionnable.", "error");
+    }
+  }
+
+  async function openAgentDownload() {
+    if (agentDownloadUrl) await Linking.openURL(agentDownloadUrl);
   }
 
   async function confirmRotateToken() {
@@ -149,27 +238,23 @@ export default function Servers() {
     <AppShell title="Serveurs">
       <View style={styles.page}>
         <View style={styles.headerRow}>
-          <View>
+          <View style={styles.headerText}>
             <Text style={styles.heading}>Serveurs surveillés</Text>
             <Text style={styles.subheading}>{"Recherchez un serveur par nom, nom d'hôte ou adresse IP."}</Text>
           </View>
-          <Pressable style={styles.addButton} onPress={() => router.push("/(main)/servers/create" as never)}>
+          <Pressable style={styles.addButton} onPress={openCreate}>
             <Ionicons name="add-outline" size={20} color={colors.text} />
             <Text style={styles.addButtonText}>Ajouter un serveur</Text>
           </Pressable>
         </View>
 
         <View style={styles.filters}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={18} color={colors.muted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Rechercher par nom, nom d'hôte ou IP"
-              placeholderTextColor={colors.muted}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
+          <SearchInput
+            containerStyle={styles.searchBox}
+            placeholder="Rechercher par nom, nom d'hôte ou IP"
+            value={search}
+            onChangeText={setSearch}
+          />
           <View style={styles.statusFilters}>
             {statusFilters.map((status) => {
               const active = statusFilter === status;
@@ -218,40 +303,146 @@ export default function Servers() {
 
         {!loading && !error && filteredServers.length > 0 && (
           <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={[styles.headerCell, styles.nameCell]}>Nom</Text>
-              <Text style={[styles.headerCell, styles.statusCell]}>Statut</Text>
-              <Text style={[styles.headerCell, styles.actionsCell]}>Actions</Text>
-            </View>
-
-            {filteredServers.map((server) => (
-              <View key={server.id} style={styles.tableRow}>
-                <View style={styles.nameCell}>
-                  <Text style={styles.serverName} numberOfLines={1}>
-                    {server.name}
-                  </Text>
-                  <Text style={styles.serverMeta} numberOfLines={1}>
-                    {server.hostname} - {server.ip}
-                  </Text>
-                </View>
-                <View style={styles.statusCell}>
-                  <View style={styles.statusPill}>
-                    <View style={[styles.statusDot, statusStyle(server.status)]} />
-                    <Text style={styles.statusText}>{statusLabel(server.status)}</Text>
-                  </View>
-                </View>
-                <View style={styles.actionsCell}>
-                  <IconTooltipButton label="Voir les détails" icon="eye-outline" onPress={() => openDetails(server)} />
-                  <IconTooltipButton label="Modifier le serveur" icon="create-outline" onPress={() => openEdit(server)} />
-                  <IconTooltipButton label="Copier le token" icon="key-outline" onPress={() => copyToken(server)} />
-                  <IconTooltipButton label="Régénérer le token" icon="refresh-outline" color={colors.warning} onPress={() => setServerToRotate(server)} />
-                  <IconTooltipButton label="Supprimer le serveur" icon="trash-outline" danger onPress={() => setServerToDelete(server)} />
-                </View>
+            {!compact ? (
+              <View style={[styles.tableRow, styles.tableHeader]}>
+                <Text style={[styles.headerCell, styles.nameCell]}>Nom</Text>
+                <Text style={[styles.headerCell, styles.statusCell]}>Statut</Text>
+                <Text style={[styles.headerCell, styles.actionsCell]}>Actions</Text>
               </View>
-            ))}
+            ) : null}
+
+            {filteredServers.map((server) => {
+              const expanded = expandedServerId === server.id;
+
+              return (
+                <View key={server.id} style={[styles.tableRow, compact && styles.compactTableRow]}>
+                  <Pressable
+                    disabled={!compact}
+                    style={[styles.nameCell, compact && styles.compactRowMain]}
+                    onPress={() => setExpandedServerId(expanded ? null : server.id)}
+                  >
+                    <View style={styles.serverTextWrap}>
+                      <Text style={styles.serverName} numberOfLines={compact ? 2 : 1}>
+                        {server.name}
+                      </Text>
+                      <Text style={styles.serverMeta} numberOfLines={compact ? 2 : 1}>
+                        {server.hostname} - {server.ip}
+                      </Text>
+                    </View>
+                    {compact ? (
+                      <Ionicons name={expanded ? "chevron-up-outline" : "chevron-down-outline"} size={20} color={colors.muted} />
+                    ) : null}
+                  </Pressable>
+                  {!compact || expanded ? (
+                    <>
+                      <View style={[styles.statusCell, compact && styles.expandedLine]}>
+                        <View style={styles.statusPill}>
+                          <View style={[styles.statusDot, statusStyle(server.status)]} />
+                          <Text style={styles.statusText}>{statusLabel(server.status)}</Text>
+                        </View>
+                      </View>
+                      <View style={[styles.actionsCell, compact && styles.expandedActions]}>
+                        <IconTooltipButton label="Voir les détails" icon="eye-outline" onPress={() => openDetails(server)} />
+                        <IconTooltipButton label="Modifier le serveur" icon="create-outline" onPress={() => openEdit(server)} />
+                        <IconTooltipButton label="Copier le token" icon="key-outline" onPress={() => copyToken(server)} />
+                        <IconTooltipButton label="Régénérer le token" icon="refresh-outline" color={colors.warning} onPress={() => setServerToRotate(server)} />
+                        <IconTooltipButton label="Supprimer le serveur" icon="trash-outline" danger onPress={() => setServerToDelete(server)} />
+                      </View>
+                    </>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         )}
       </View>
+
+      <Modal visible={createOpen} transparent animationType="fade" onRequestClose={closeCreate}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modal, styles.createModal, compact && styles.compactModal]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{createdServer ? "Token de l'agent" : "Nouveau serveur"}</Text>
+              <Pressable accessibilityLabel="Fermer" onPress={closeCreate}>
+                <Ionicons name="close" size={24} color={colors.muted} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.createModalBody}>
+              {!createdServer ? (
+                <>
+                  <Text style={styles.modalDescription}>
+                    {"Créez le serveur, puis copiez le token dans la configuration de l'agent MonOpsX."}
+                  </Text>
+                  <FormField
+                    label="Nom"
+                    value={createForm.name}
+                    placeholder="Machine locale"
+                    error={createErrors.name}
+                    onChangeText={(value) => updateCreateField("name", value)}
+                  />
+                  <FormField
+                    label="Nom d'hôte"
+                    value={createForm.hostname}
+                    placeholder="localhost"
+                    error={createErrors.hostname}
+                    onChangeText={(value) => updateCreateField("hostname", value)}
+                  />
+                  <FormField
+                    label="Adresse IP"
+                    value={createForm.ip}
+                    placeholder="127.0.0.1"
+                    error={createErrors.ip}
+                    keyboardType="numeric"
+                    onChangeText={(value) => updateCreateField("ip", value)}
+                  />
+                  <PrimaryButton label="Créer le serveur" loading={creatingServer} onPress={submitCreate} />
+                </>
+              ) : (
+                <View style={styles.tokenCard}>
+                  <Text style={styles.tokenHelp}>
+                    {"Ce token est affiché uniquement après la création. Donnez-le à l'agent MonOpsX en ligne de commande."}
+                  </Text>
+                  <Text selectable style={styles.tokenValue}>
+                    {createdServer.webhook_token}
+                  </Text>
+
+                  <View style={styles.copyRow}>
+                    <Text selectable style={styles.commandValue}>
+                      python agent.py --token {createdServer.webhook_token}
+                    </Text>
+                    <Pressable accessibilityLabel="Copier la commande" style={styles.iconButton} onPress={copyCreatedCommand}>
+                      <Ionicons name="copy-outline" size={18} color={colors.text} />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.tokenActions}>
+                    <Pressable style={styles.secondaryButton} onPress={copyCreatedToken}>
+                      <Text style={styles.secondaryButtonText}>Copier le token</Text>
+                    </Pressable>
+                    {agentDownloadUrl ? (
+                      <Pressable style={styles.secondaryButton} onPress={openAgentDownload}>
+                        <Ionicons name="logo-github" size={18} color={colors.primary} />
+                        <Text style={styles.secondaryButtonText}>{"Télécharger l'agent"}</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable style={styles.primaryButton} onPress={openCreatedDetails}>
+                      <Text style={styles.primaryButtonText}>Voir le serveur</Text>
+                    </Pressable>
+                  </View>
+
+                  {!agentDownloadUrl ? (
+                    <Text style={styles.deployNote}>
+                      {"Configurez EXPO_PUBLIC_MONOPSX_AGENT_DOWNLOAD_URL pour afficher le lien GitHub de téléchargement de l'agent."}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.deployNote}>
+                    {"Pour plusieurs instances, créez un serveur séparé et utilisez un token différent pour chaque agent."}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={Boolean(editingServer)} transparent animationType="fade" onRequestClose={() => setEditingServer(null)}>
         <View style={styles.modalOverlay}>
@@ -325,6 +516,14 @@ function statusFilterLabel(status: StatusFilter) {
   return statusLabel(status);
 }
 
+function validateCreateForm(form: CreateServerPayload) {
+  const nextErrors: FormErrors = {};
+  if (!form.name.trim()) nextErrors.name = "Le nom est obligatoire.";
+  if (!form.hostname.trim()) nextErrors.hostname = "Le nom d'hôte est obligatoire.";
+  if (!form.ip.trim()) nextErrors.ip = "L'adresse IP est obligatoire.";
+  return nextErrors;
+}
+
 async function copyText(value: string) {
   const clipboard = globalThis.navigator?.clipboard;
   if (!clipboard?.writeText) return false;
@@ -362,16 +561,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     flexWrap: "wrap",
   },
+  headerText: {
+    flex: 1,
+    minWidth: 220,
+  },
   heading: {
     color: colors.text,
     fontFamily: fonts.bold,
     fontSize: typography.h2,
   },
   subheading: {
+    maxWidth: 720,
     marginTop: spacing.xs,
     color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: typography.body,
+    lineHeight: 21,
   },
   addButton: {
     minHeight: 42,
@@ -398,25 +603,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   searchBox: {
-    minHeight: 46,
     flex: 1,
-    minWidth: 0,
+    minWidth: 220,
     maxWidth: 640,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderRadius: radii.medium,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  searchInput: {
-    flex: 1,
-    minWidth: 180,
-    color: colors.text,
-    fontFamily: fonts.regular,
-    fontSize: typography.body,
   },
   statusFilters: {
     flexDirection: "row",
@@ -479,6 +668,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  compactTableRow: {
+    alignItems: "stretch",
+    gap: spacing.sm,
+  },
   tableHeader: {
     minHeight: 46,
     borderTopWidth: 0,
@@ -494,9 +687,25 @@ const styles = StyleSheet.create({
     flex: 1.5,
     minWidth: 160,
   },
+  compactRowMain: {
+    width: "100%",
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  serverTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
   statusCell: {
     flex: 1,
     minWidth: 130,
+  },
+  expandedLine: {
+    width: "100%",
+    minWidth: 0,
   },
   actionsCell: {
     flex: 1,
@@ -506,6 +715,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     flexWrap: "wrap",
     gap: spacing.sm,
+  },
+  expandedActions: {
+    width: "100%",
+    minWidth: 0,
+    justifyContent: "flex-start",
   },
   serverName: {
     color: colors.text,
@@ -550,12 +764,22 @@ const styles = StyleSheet.create({
   modal: {
     width: "100%",
     maxWidth: 460,
+    maxHeight: "92%",
     gap: spacing.md,
     borderRadius: radii.medium,
     padding: spacing.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  createModal: {
+    maxWidth: 680,
+  },
+  compactModal: {
+    maxHeight: "100%",
+  },
+  createModalBody: {
+    paddingBottom: spacing.sm,
   },
   modalHeader: {
     flexDirection: "row",
@@ -567,6 +791,14 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.bold,
     fontSize: typography.h3,
+    flexShrink: 1,
+  },
+  modalDescription: {
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.body,
+    lineHeight: 21,
+    marginBottom: spacing.sm,
   },
   confirmText: {
     color: colors.muted,
@@ -582,7 +814,10 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
+    gap: spacing.sm,
     borderRadius: radii.medium,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surface,
@@ -619,5 +854,64 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.medium,
     fontSize: typography.body,
+  },
+  tokenCard: {
+    gap: spacing.md,
+  },
+  tokenHelp: {
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.body,
+    lineHeight: 21,
+  },
+  tokenValue: {
+    borderRadius: radii.small,
+    padding: spacing.md,
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+    lineHeight: 20,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  copyRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: spacing.sm,
+  },
+  commandValue: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: radii.small,
+    padding: spacing.md,
+    color: colors.text,
+    fontFamily: fonts.medium,
+    fontSize: typography.body,
+    lineHeight: 20,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  iconButton: {
+    width: 40,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.medium,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tokenActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  deployNote: {
+    color: colors.muted,
+    fontFamily: fonts.regular,
+    fontSize: typography.body,
+    lineHeight: 21,
   },
 });

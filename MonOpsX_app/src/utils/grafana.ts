@@ -11,6 +11,7 @@ export interface GrafanaConfig {
 }
 
 export interface GrafanaServerContext {
+  accountId?: string;
   serverId: string;
   serverName?: string;
   hostname?: string;
@@ -52,13 +53,14 @@ function resolveDashboardUrl(path: string, baseUrl: string | undefined) {
 
 function interpolateServerTemplate(value: string, server: GrafanaServerContext, encodeValues: boolean) {
   const replacements: Record<string, string> = {
+    accountId: server.accountId ?? "",
     serverId: server.serverId,
     serverName: server.serverName ?? "",
     hostname: server.hostname ?? "",
     ip: server.ip ?? "",
   };
 
-  return value.replace(/\{(serverId|serverName|hostname|ip)\}/g, (_, key: keyof typeof replacements) => {
+  return value.replace(/\{(accountId|serverId|serverName|hostname|ip)\}/g, (_, key: keyof typeof replacements) => {
     const replacement = replacements[key];
     return encodeValues ? encodeURIComponent(replacement) : replacement;
   });
@@ -108,10 +110,11 @@ function parseGrafanaDashboards(
   return { dashboards, errors, configured: true };
 }
 
-export function getGlobalGrafanaConfig(): GrafanaConfig {
+export function getGlobalGrafanaConfig(accountId?: string): GrafanaConfig {
   return parseGrafanaDashboards(
     process.env.EXPO_PUBLIC_GRAFANA_GLOBAL_DASHBOARDS ?? process.env.EXPO_PUBLIC_GRAFANA_DASHBOARDS,
-    process.env.EXPO_PUBLIC_GRAFANA_BASE_URL?.replace(/\/$/, "")
+    process.env.EXPO_PUBLIC_GRAFANA_BASE_URL?.replace(/\/$/, ""),
+    { accountId, serverId: "" }
   );
 }
 
