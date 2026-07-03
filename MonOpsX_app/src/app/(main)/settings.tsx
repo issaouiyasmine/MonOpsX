@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from "react-native";
 
 import { AppShell } from "@/components/app-shell";
 import { Permissions } from "@/constants/permissions";
@@ -24,6 +24,8 @@ const defaultNotificationSettings: NotificationSettings = {
   },
 };
 
+const noInputOutline = { outlineStyle: "none" } as unknown as TextInputProps["style"];
+
 const notificationMetricRows: {
   key: keyof NotificationMetricSettings;
   label: string;
@@ -43,6 +45,7 @@ export default function Settings() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [deletePasswordFocused, setDeletePasswordFocused] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const canAccessSettings = Boolean(session?.permissions.includes(Permissions.SETTINGS_ACCESS));
@@ -237,11 +240,13 @@ export default function Settings() {
             </Text>
             <TextInput
               secureTextEntry
-              style={styles.passwordInput}
+              style={[styles.passwordInput, deletePasswordFocused && styles.passwordInputFocused, noInputOutline]}
               placeholder="Mot de passe"
               placeholderTextColor={colors.muted}
               value={deletePassword}
               onChangeText={setDeletePassword}
+              onBlur={() => setDeletePasswordFocused(false)}
+              onFocus={() => setDeletePasswordFocused(true)}
             />
             <View style={styles.modalActions}>
               <Pressable
@@ -571,6 +576,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.input,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  passwordInputFocused: {
+    borderColor: colors.primary,
   },
   modalActions: {
     flexDirection: "row",

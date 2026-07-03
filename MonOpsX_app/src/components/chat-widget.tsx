@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputProps,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -20,12 +21,15 @@ interface ChatWidgetProps {
   serverLabel?: string;
 }
 
+const noInputOutline = { outlineStyle: "none" } as unknown as TextInputProps["style"];
+
 export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
   const { width } = useWindowDimensions();
   const compact = width < 700;
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [draftFocused, setDraftFocused] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +105,14 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
     }
   }
 
+  function handleDraftKeyPress(event: Parameters<NonNullable<TextInputProps["onKeyPress"]>>[0]) {
+    const nativeEvent = event.nativeEvent as typeof event.nativeEvent & { shiftKey?: boolean };
+    if (nativeEvent.key !== "Enter" || nativeEvent.shiftKey) return;
+
+    (event as unknown as { preventDefault?: () => void }).preventDefault?.();
+    void send();
+  }
+
   return (
     <View pointerEvents="box-none" style={styles.host}>
       {open && (
@@ -170,9 +182,13 @@ export function ChatWidget({ serverId, serverLabel }: ChatWidgetProps) {
               onChangeText={setDraft}
               placeholder="Posez une question sur les serveurs ou les métriques..."
               placeholderTextColor={colors.muted}
-              style={styles.input}
+              style={[styles.input, draftFocused && styles.inputFocused, noInputOutline]}
               multiline
               editable={!sending}
+              returnKeyType="send"
+              onKeyPress={handleDraftKeyPress}
+              onBlur={() => setDraftFocused(false)}
+              onFocus={() => setDraftFocused(true)}
             />
             <Pressable accessibilityLabel="Envoyer" disabled={sending} style={[styles.iconButton, sending && styles.disabled]} onPress={send}>
               <Ionicons name="send" size={20} color={colors.text} />
@@ -337,5 +353,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     fontFamily: fonts.regular,
     fontSize: typography.body,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
   },
 });

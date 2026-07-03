@@ -35,7 +35,6 @@ export default function Servers() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateServerPayload>(initialCreateForm);
   const [createErrors, setCreateErrors] = useState<FormErrors>({});
@@ -124,7 +123,6 @@ export default function Servers() {
       });
       setCreatedServer(server);
       setServers((current) => [server, ...current.filter((item) => item.id !== server.id)]);
-      setExpandedServerId(server.id);
       showToast("Serveur crÃ©Ã© avec succÃ¨s.");
     } catch (error) {
       showToast(getApiErrorMessage(error), "error");
@@ -311,16 +309,9 @@ export default function Servers() {
               </View>
             ) : null}
 
-            {filteredServers.map((server) => {
-              const expanded = expandedServerId === server.id;
-
-              return (
+            {filteredServers.map((server) => (
                 <View key={server.id} style={[styles.tableRow, compact && styles.compactTableRow]}>
-                  <Pressable
-                    disabled={!compact}
-                    style={[styles.nameCell, compact && styles.compactRowMain]}
-                    onPress={() => setExpandedServerId(expanded ? null : server.id)}
-                  >
+                  <View style={[styles.nameCell, compact && styles.compactRowMain]}>
                     <View style={styles.serverTextWrap}>
                       <Text style={styles.serverName} numberOfLines={compact ? 2 : 1}>
                         {server.name}
@@ -329,12 +320,7 @@ export default function Servers() {
                         {server.hostname} - {server.ip}
                       </Text>
                     </View>
-                    {compact ? (
-                      <Ionicons name={expanded ? "chevron-up-outline" : "chevron-down-outline"} size={20} color={colors.muted} />
-                    ) : null}
-                  </Pressable>
-                  {!compact || expanded ? (
-                    <>
+                  </View>
                       <View style={[styles.statusCell, compact && styles.expandedLine]}>
                         <View style={styles.statusPill}>
                           <View style={[styles.statusDot, statusStyle(server.status)]} />
@@ -348,11 +334,8 @@ export default function Servers() {
                         <IconTooltipButton label="Régénérer le token" icon="refresh-outline" color={colors.warning} onPress={() => setServerToRotate(server)} />
                         <IconTooltipButton label="Supprimer le serveur" icon="trash-outline" danger onPress={() => setServerToDelete(server)} />
                       </View>
-                    </>
-                  ) : null}
                 </View>
-              );
-            })}
+            ))}
           </View>
         )}
       </View>

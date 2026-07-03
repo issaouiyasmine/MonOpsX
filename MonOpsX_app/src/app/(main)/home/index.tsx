@@ -20,7 +20,8 @@ const eventTypes: DashboardEventType[] = ["all", "deployment", "crash", "thresho
 
 export default function Home() {
   const { session } = useAuth();
-  const config = useMemo(() => getGlobalGrafanaConfig(session?.account_id), [session?.account_id]);
+  const accountId = session?.account_id;
+  const config = useMemo(() => (accountId ? getGlobalGrafanaConfig(accountId) : { dashboards: [], errors: [], configured: false }), [accountId]);
   const [servers, setServers] = useState<Server[]>([]);
   const [dashboard, setDashboard] = useState<DashboardMetrics | null>(null);
   const [period, setPeriod] = useState<DashboardPeriod>("24h");
@@ -135,7 +136,7 @@ export default function Home() {
 
         {!metricsLoading && !metricsError && dashboard && <DashboardHistoryCharts data={dashboard} />}
 
-        {!config.configured && (
+        {accountId && !config.configured && (
           <View style={styles.alert}>
             <Ionicons name="information-circle-outline" size={20} color={colors.info} />
             <Text style={styles.alertText}>
@@ -158,7 +159,7 @@ export default function Home() {
           </View>
         )}
 
-        {config.configured && !selectedDashboard && (
+        {accountId && config.configured && !selectedDashboard && (
           <View style={styles.emptyCard}>
             <Ionicons name="analytics-outline" size={34} color={colors.muted} />
             <Text style={styles.emptyTitle}>Aucun tableau de bord valide trouve</Text>
@@ -166,7 +167,7 @@ export default function Home() {
           </View>
         )}
 
-        {selectedDashboard && (
+        {accountId && selectedDashboard && (
           <>
             {config.dashboards.length > 1 && (
               <View style={styles.tabs}>

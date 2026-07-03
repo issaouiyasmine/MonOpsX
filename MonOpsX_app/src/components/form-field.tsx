@@ -17,6 +17,8 @@ interface FormFieldProps extends TextInputProps {
   password?: boolean;
 }
 
+const noInputOutline = { outlineStyle: "none" } as unknown as TextInputProps["style"];
+
 export function FormField({ label, error, password, ...inputProps }: FormFieldProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -41,7 +43,7 @@ export function FormField({ label, error, password, ...inputProps }: FormFieldPr
           secureTextEntry={password && !isPasswordVisible}
           selectionColor={colors.primary}
           underlineColorAndroid="transparent"
-          style={[styles.input, inputProps.style]}
+          style={[styles.input, noInputOutline, inputProps.style]}
         />
         {password ? (
           <Pressable
@@ -80,10 +82,6 @@ const styles = StyleSheet.create({
   inputError: { borderColor: colors.danger },
   inputFocused: {
     borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 2,
   },
   input: {
     flex: 1,

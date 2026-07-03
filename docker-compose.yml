@@ -12,8 +12,8 @@ services:
       # Téléphone physique sur Wi-Fi: localhost pointe vers le téléphone, utilisez une IP LAN ou une URL déployée.
       EXPO_PUBLIC_API_URL: http://localhost:8000
       EXPO_PUBLIC_GRAFANA_BASE_URL: http://localhost:3000
-      EXPO_PUBLIC_GRAFANA_GLOBAL_DASHBOARDS: "Vue globale|/d/monopsx-global/monopsx-global?orgId=1"
-      EXPO_PUBLIC_GRAFANA_SERVER_DASHBOARDS: "Métriques serveur|/d/monopsx-server/monopsx-server?orgId=1&var-server_id={serverId}"
+      EXPO_PUBLIC_GRAFANA_GLOBAL_DASHBOARDS: "Vue globale|/d/monopsx-global/monopsx-global?orgId=1&var-account_id={accountId}"
+      EXPO_PUBLIC_GRAFANA_SERVER_DASHBOARDS: "Métriques serveur|/d/monopsx-server/monopsx-server?orgId=1&var-account_id={accountId}&var-server_id={serverId}"
       EXPO_NO_TELEMETRY: "1"
       REACT_NATIVE_PACKAGER_HOSTNAME: localhost
     ports:
@@ -76,8 +76,8 @@ services:
       GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource
       # Pour des tableaux de bord basés sur l'API, ajoutez une datasource JSON/Infinity
       # dans Grafana et utilisez les URL de l'API MonOpsX depuis le réseau Docker.
-      # Tableaux globaux: vue de tous les serveurs.
-      # Tableaux serveur: filtrer avec server_id, hostname ou ip.
+      # Les tableaux Grafana doivent recevoir var-account_id depuis l'application.
+      # Un acces direct sans var-account_id ne renvoie pas de donnees de compte.
     ports:
       - "3000:3000"
     volumes:

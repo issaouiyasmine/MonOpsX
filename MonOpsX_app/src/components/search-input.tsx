@@ -8,6 +8,8 @@ interface SearchInputProps extends TextInputProps {
   containerStyle?: StyleProp<ViewStyle>;
 }
 
+const noInputOutline = { outlineStyle: "none" } as unknown as TextInputProps["style"];
+
 export function SearchInput({ containerStyle, style, ...inputProps }: SearchInputProps) {
   const [focused, setFocused] = useState(false);
 
@@ -27,7 +29,7 @@ export function SearchInput({ containerStyle, style, ...inputProps }: SearchInpu
         placeholderTextColor={colors.muted}
         selectionColor={colors.primary}
         underlineColorAndroid="transparent"
-        style={[styles.searchInput, style]}
+        style={[styles.searchInput, noInputOutline, style]}
       />
     </View>
   );
@@ -47,10 +49,6 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 2,
   },
   searchInput: {
     flex: 1,

@@ -520,7 +520,10 @@ function InfoPill({ label, value }: { label: string; value: string }) {
 }
 
 function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
-  const config = useMemo(() => getServerGrafanaConfig(server), [server]);
+  const config = useMemo(
+    () => (server.accountId ? getServerGrafanaConfig(server) : { dashboards: [], errors: [], configured: false }),
+    [server]
+  );
   const [selectedId, setSelectedId] = useState(config.dashboards[0]?.id);
   const [loading, setLoading] = useState(Boolean(config.dashboards[0]));
   const [frameError, setFrameError] = useState(false);
@@ -576,7 +579,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
             Métriques filtrées pour {server.hostname || server.ip || server.serverId}.
           </Text>
         </View>
-        {selectedDashboard && (
+        {server.accountId && selectedDashboard && (
           <Pressable style={styles.openButton} onPress={openGrafana}>
             <Ionicons name="open-outline" size={18} color={colors.text} />
             <Text style={styles.openButtonText}>Ouvrir dans Grafana</Text>
@@ -584,7 +587,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
         )}
       </View>
 
-      {!config.configured && (
+      {server.accountId && !config.configured && (
         <View style={styles.alert}>
           <Ionicons name="information-circle-outline" size={20} color={colors.info} />
           <Text style={styles.alertText}>
@@ -625,7 +628,7 @@ function ServerGrafanaView({ server }: { server: GrafanaServerContext }) {
         </View>
       )}
 
-      {selectedDashboard && (
+      {server.accountId && selectedDashboard && (
         <>
           {config.dashboards.length > 1 && (
             <View style={styles.dashboardTabs}>
